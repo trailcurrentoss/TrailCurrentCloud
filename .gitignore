@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+dist/
+build/
+
+# IDE metadata
+.idea/
+.vscode/
+.eclipse/
+
+# Python
+/__pycache__/
+
+# Environment and secrets
+.env
+*.key
+*.pem
+*.crt
+
+# Generated data (certs, tiles, databases)
+data/
+
+# Temporary files
+*.tmp
+*.log
+
+# OSM data files
+**/*.pbf
+cookies.txt
+
+# Tile server generated files
+**/*.mbtiles
+tileserver/*.jar
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Claude Code
+CLAUDE.md
+.claude/

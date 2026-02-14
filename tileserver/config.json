@@ -1,0 +1,23 @@
+{
+  "options": {
+    "paths": {
+      "root": "/",
+      "fonts": "/data/fonts",
+      "styles": "/data/styles",
+      "mbtiles": "/data/tiles"
+    }
+  },
+  "styles": {
+    "dark": {
+      "style": "/data/styles/dark.json"
+    },
+    "basic": {
+      "style": "/data/styles/basic.json"
+    }
+  },
+  "data": {
+    "north-america": {
+      "mbtiles": "/data/tiles/north-america.mbtiles"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+# Development configuration - exposes all ports for debugging/testing
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  frontend:
+    ports:
+      - "${FRONTEND_PORT:-8443}:443"
+    volumes:
+      # Hot-reload for frontend HTML/JS changes
+      - ./frontend/public:/usr/share/nginx/html
+
+  backend:
+    ports:
+      - "3000:3000"
+      - "9229:9229"
+    command:
+      - npx
+      - nodemon
+      - --inspect=0.0.0.0:9229
+      - src/index.js
+    environment:
+      - NODE_ENV=development
+
+  mongodb:
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+
+  tileserver:
+    ports:
+      - "${TILESERVER_PORT:-8080}:80"
+    # Mount styles directory for hot-reload map style changes
+    volumes:
+      - ./tileserver/styles:/data/styles
