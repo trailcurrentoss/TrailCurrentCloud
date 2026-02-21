@@ -132,10 +132,13 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 5. **Prepare map tiles** (if using the map feature):
 
    ```bash
+   mkdir -p ~/TrailCurrentCloud/data/tileserver
    # Place your .mbtiles file at:
    # ~/TrailCurrentCloud/data/tileserver/north-america.mbtiles
    # See DOCS/GeneratingMapTiles.md for generation instructions
    ```
+
+   The tileserver container requires this file to start. Without it the tileserver will restart repeatedly. All other services (frontend, backend, MQTT, database) work fine regardless.
 
 6. **Start services:**
 
