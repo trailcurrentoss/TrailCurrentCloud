@@ -149,26 +149,44 @@ obtain_certificates() {
 copy_certificates() {
     print_header "Installing Certificates"
 
-    LE_LIVE="$LE_DIR/live/$DOMAIN"
+    # Certbot stores actual files in archive/ with numbered names (fullchain1.pem, etc.)
+    # and creates symlinks in live/ pointing to container-internal absolute paths.
+    # Those symlinks are broken on the host, so we read directly from archive/
+    # and pick the highest-numbered (latest) version of each file.
+    LE_ARCHIVE="$LE_DIR/archive/$DOMAIN"
 
-    if [ ! -d "$LE_LIVE" ]; then
-        print_error "Certificate directory not found: $LE_LIVE"
+    if [ ! -d "$LE_ARCHIVE" ]; then
+        print_error "Certificate archive not found: $LE_ARCHIVE"
+        exit 1
+    fi
+
+    latest_file() {
+        # Find the highest-numbered version of a cert file (e.g., fullchain1.pem, fullchain2.pem)
+        ls -v "$LE_ARCHIVE/$1"*.pem 2>/dev/null | tail -1
+    }
+
+    FULLCHAIN=$(latest_file "fullchain")
+    PRIVKEY=$(latest_file "privkey")
+    CHAIN=$(latest_file "chain")
+
+    if [ -z "$FULLCHAIN" ] || [ -z "$PRIVKEY" ] || [ -z "$CHAIN" ]; then
+        print_error "Expected certificate files not found in $LE_ARCHIVE"
         exit 1
     fi
 
     # Copy LE certs to data/keys/ with the names all services expect
-    cp -L "$LE_LIVE/fullchain.pem" "$KEYS_DIR/server.crt"
-    cp -L "$LE_LIVE/privkey.pem"   "$KEYS_DIR/server.key"
-    cp -L "$LE_LIVE/chain.pem"     "$KEYS_DIR/ca.crt"
-    cp -L "$LE_LIVE/chain.pem"     "$KEYS_DIR/ca.pem"
+    cp "$FULLCHAIN" "$KEYS_DIR/server.crt"
+    cp "$PRIVKEY"   "$KEYS_DIR/server.key"
+    cp "$CHAIN"     "$KEYS_DIR/ca.crt"
+    cp "$CHAIN"     "$KEYS_DIR/ca.pem"
 
     chmod 644 "$KEYS_DIR/server.crt" "$KEYS_DIR/ca.crt" "$KEYS_DIR/ca.pem"
     chmod 600 "$KEYS_DIR/server.key"
 
-    print_success "server.crt  ← fullchain.pem (nginx, mosquitto)"
-    print_success "server.key  ← privkey.pem   (nginx, mosquitto)"
-    print_success "ca.crt      ← chain.pem     (mosquitto)"
-    print_success "ca.pem      ← chain.pem     (backend MQTT)"
+    print_success "server.crt  ← $(basename "$FULLCHAIN") (nginx, mosquitto)"
+    print_success "server.key  ← $(basename "$PRIVKEY")   (nginx, mosquitto)"
+    print_success "ca.crt      ← $(basename "$CHAIN")     (mosquitto)"
+    print_success "ca.pem      ← $(basename "$CHAIN")     (backend MQTT)"
 }
 
 display_cert_info() {
