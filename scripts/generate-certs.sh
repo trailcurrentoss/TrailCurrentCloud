@@ -263,7 +263,7 @@ display_next_steps() {
             echo "   docker compose up -d"
             echo ""
             echo "2. Access web interface:"
-            echo "   https://localhost:${FRONTEND_PORT:-8443}"
+            echo "   https://localhost:${FRONTEND_PORT:-443}"
             echo ""
             echo "3. Accept self-signed certificate warning (one-time)"
             echo ""
@@ -275,7 +275,7 @@ display_next_steps() {
             echo "2. Deploy with these certificates"
             echo ""
             echo "3. Access from network:"
-            echo "   https://$HOSTNAME:${FRONTEND_PORT:-8443}"
+            echo "   https://$HOSTNAME:${FRONTEND_PORT:-443}"
             echo "   mqtts://$HOSTNAME:8883"
             echo ""
             ;;

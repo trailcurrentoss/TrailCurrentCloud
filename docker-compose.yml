@@ -11,7 +11,7 @@ services:
       - certbot-webroot:/var/www/certbot:ro
     ports:
       - "${FRONTEND_HTTP_PORT:-80}:80"
-      - "${FRONTEND_PORT:-8443}:443"
+      - "${FRONTEND_PORT:-443}:443"
     restart: unless-stopped
     depends_on:
       - backend

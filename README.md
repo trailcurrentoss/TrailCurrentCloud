@@ -59,7 +59,7 @@ Dockerized microservices stack:
 4. **Access the app:**
 
    ```
-   https://localhost:8443
+   https://localhost
    ```
 
    Accept the self-signed certificate warning on first visit.
@@ -382,7 +382,7 @@ See `.env.example` for all configuration options. Key variables:
 | `MQTT_USERNAME` / `MQTT_PASSWORD` | MQTT broker credentials |
 | `TLS_CERT_HOSTNAME` | Domain for TLS certificates |
 | `LETSENCRYPT_EMAIL` | Email for Let's Encrypt (production only) |
-| `FRONTEND_PORT` | HTTPS port (default: 8443, use 443 for production) |
+| `FRONTEND_PORT` | HTTPS port (default: 443) |
 | `FRONTEND_HTTP_PORT` | HTTP port for ACME + redirect (default: 80) |
 | `NODE_ENV` | `production` or `development` |
 

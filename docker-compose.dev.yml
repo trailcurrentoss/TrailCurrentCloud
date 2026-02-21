@@ -4,7 +4,7 @@
 services:
   frontend:
     ports:
-      - "${FRONTEND_PORT:-8443}:443"
+      - "${FRONTEND_PORT:-443}:443"
     volumes:
       # Hot-reload for frontend HTML/JS changes
       - ./frontend/public:/usr/share/nginx/html
