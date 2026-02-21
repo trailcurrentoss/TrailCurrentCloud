@@ -77,20 +77,25 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 ### Prerequisites
 
 - A Linux server with Docker and Docker Compose installed
+- A dedicated user account for running the cloud services (e.g., `trailcurrent`)
 - A public domain name with a DNS A record pointing to the server
 - Ports 80 and 443 open in the firewall
-- Ports 8883 open if edge devices connect to MQTT directly
+- Port 8883 open if edge devices connect to MQTT directly
 
 ### First-Time Server Setup
 
-1. **Clone the repository onto the server:**
+Create a dedicated user and clone the repository into their home directory:
 
-   ```bash
-   git clone <repository-url> /opt/trailcurrent-cloud
-   cd /opt/trailcurrent-cloud
-   ```
+```bash
+sudo adduser trailcurrent
+sudo usermod -aG docker trailcurrent
+su - trailcurrent
+git clone <repository-url> ~
+```
 
-2. **Configure environment:**
+The repository contents live directly in `~/` — no subdirectory needed since this user is dedicated to running the cloud.
+
+1. **Configure environment:**
 
    ```bash
    cp .env.example .env
@@ -108,7 +113,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
    MQTT_PASSWORD=<mqtt-password>
    ```
 
-3. **Obtain Let's Encrypt certificates:**
+2. **Obtain Let's Encrypt certificates:**
 
    ```bash
    ./scripts/setup-letsencrypt.sh
@@ -116,7 +121,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
    This runs certbot in standalone mode on port 80 to complete the ACME challenge. Nothing else should be bound to port 80 at this point.
 
-4. **Prepare map tiles** (if using the map feature):
+3. **Prepare map tiles** (if using the map feature):
 
    ```bash
    # Place your .mbtiles file at:
@@ -124,13 +129,13 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
    # See DOCS/GeneratingMapTiles.md for generation instructions
    ```
 
-5. **Start services:**
+4. **Start services:**
 
    ```bash
    docker compose up -d
    ```
 
-6. **Set up automatic certificate renewal:**
+5. **Set up automatic certificate renewal:**
 
    Let's Encrypt certificates expire after 90 days. Add a cron job to renew automatically:
 
@@ -141,12 +146,14 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
    Add this line:
 
    ```
-   0 0,12 * * * /opt/trailcurrent-cloud/scripts/renew-certs.sh >> /var/log/trailcurrent-cert-renewal.log 2>&1
+   0 0,12 * * * ~/scripts/renew-certs.sh >> ~/logs/cert-renewal.log 2>&1
    ```
+
+   Create the logs directory: `mkdir -p ~/logs`
 
    The renewal script checks twice daily, only renews when needed, copies updated certs to `data/keys/`, reloads nginx, and restarts mosquitto.
 
-7. **Verify:**
+6. **Verify:**
 
    ```
    https://cloud.yourdomain.com
@@ -159,7 +166,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 To deploy code updates to an existing server:
 
 ```bash
-cd /opt/trailcurrent-cloud
+su - trailcurrent
 git pull
 docker compose up -d --build
 ```
