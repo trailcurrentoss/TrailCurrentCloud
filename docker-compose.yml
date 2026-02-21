@@ -8,7 +8,9 @@ services:
     volumes:
       - ./data/keys/server.crt:/etc/nginx/certs/server.crt:ro
       - ./data/keys/server.key:/etc/nginx/certs/server.key:ro
+      - certbot-webroot:/var/www/certbot:ro
     ports:
+      - "${FRONTEND_HTTP_PORT:-80}:80"
       - "${FRONTEND_PORT:-8443}:443"
     restart: unless-stopped
     depends_on:
@@ -78,3 +80,4 @@ services:
 
 volumes:
   mongodb-data:
+  certbot-webroot:
