@@ -53,9 +53,9 @@ services:
       - MQTT_USERNAME=${MQTT_USERNAME}
       - MQTT_PASSWORD=${MQTT_PASSWORD}
     volumes:
-      - ./data/keys/server.crt:/mosquitto/certs/server.crt:ro
-      - ./data/keys/server.key:/mosquitto/certs/server.key:ro
-      - ./data/keys/ca.crt:/mosquitto/certs/ca.crt:ro
+      - ./data/keys/server.crt:/mosquitto/host-certs/server.crt:ro
+      - ./data/keys/server.key:/mosquitto/host-certs/server.key:ro
+      - ./data/keys/ca.crt:/mosquitto/host-certs/ca.crt:ro
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     ports:
       - "${MQTT_PORT:-8883}:8883"
