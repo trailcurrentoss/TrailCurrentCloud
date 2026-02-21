@@ -149,44 +149,37 @@ obtain_certificates() {
 copy_certificates() {
     print_header "Installing Certificates"
 
-    # Certbot stores actual files in archive/ with numbered names (fullchain1.pem, etc.)
-    # and creates symlinks in live/ pointing to container-internal absolute paths.
-    # Those symlinks are broken on the host, so we read directly from archive/
-    # and pick the highest-numbered (latest) version of each file.
-    LE_ARCHIVE="$LE_DIR/archive/$DOMAIN"
+    mkdir -p "$KEYS_DIR"
 
-    if [ ! -d "$LE_ARCHIVE" ]; then
-        print_error "Certificate archive not found: $LE_ARCHIVE"
+    # Certbot runs as root inside Docker. The archive/ directory and symlinks in
+    # live/ use container-internal absolute paths (/etc/letsencrypt/...) that are
+    # broken on the host, and archive/ is created with 0700 root ownership.
+    # Solution: run the copy inside a container where the volume is mounted at
+    # /etc/letsencrypt so the live/ symlinks resolve correctly.
+    print_info "Copying certificates from certbot volume to data/keys/..."
+
+    docker run --rm \
+        -v "$LE_DIR:/etc/letsencrypt:ro" \
+        -v "$KEYS_DIR:/output" \
+        alpine sh -c "
+            cd /etc/letsencrypt/live/$DOMAIN || exit 1
+            cp fullchain.pem /output/server.crt && \
+            cp privkey.pem   /output/server.key && \
+            cp chain.pem     /output/ca.crt && \
+            cp chain.pem     /output/ca.pem && \
+            chmod 644 /output/server.crt /output/ca.crt /output/ca.pem && \
+            chmod 600 /output/server.key
+        "
+
+    if [ $? -ne 0 ]; then
+        print_error "Failed to copy certificates from certbot volume"
         exit 1
     fi
 
-    latest_file() {
-        # Find the highest-numbered version of a cert file (e.g., fullchain1.pem, fullchain2.pem)
-        ls -v "$LE_ARCHIVE/$1"*.pem 2>/dev/null | tail -1
-    }
-
-    FULLCHAIN=$(latest_file "fullchain")
-    PRIVKEY=$(latest_file "privkey")
-    CHAIN=$(latest_file "chain")
-
-    if [ -z "$FULLCHAIN" ] || [ -z "$PRIVKEY" ] || [ -z "$CHAIN" ]; then
-        print_error "Expected certificate files not found in $LE_ARCHIVE"
-        exit 1
-    fi
-
-    # Copy LE certs to data/keys/ with the names all services expect
-    cp "$FULLCHAIN" "$KEYS_DIR/server.crt"
-    cp "$PRIVKEY"   "$KEYS_DIR/server.key"
-    cp "$CHAIN"     "$KEYS_DIR/ca.crt"
-    cp "$CHAIN"     "$KEYS_DIR/ca.pem"
-
-    chmod 644 "$KEYS_DIR/server.crt" "$KEYS_DIR/ca.crt" "$KEYS_DIR/ca.pem"
-    chmod 600 "$KEYS_DIR/server.key"
-
-    print_success "server.crt  ← $(basename "$FULLCHAIN") (nginx, mosquitto)"
-    print_success "server.key  ← $(basename "$PRIVKEY")   (nginx, mosquitto)"
-    print_success "ca.crt      ← $(basename "$CHAIN")     (mosquitto)"
-    print_success "ca.pem      ← $(basename "$CHAIN")     (backend MQTT)"
+    print_success "server.crt  ← fullchain.pem (nginx, mosquitto)"
+    print_success "server.key  ← privkey.pem   (nginx, mosquitto)"
+    print_success "ca.crt      ← chain.pem     (mosquitto)"
+    print_success "ca.pem      ← chain.pem     (backend MQTT)"
 }
 
 display_cert_info() {

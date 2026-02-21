@@ -46,20 +46,6 @@ if [ -z "$DOMAIN" ]; then
     exit 1
 fi
 
-# Certbot stores actual files in archive/ with numbered names.
-# Symlinks in live/ point to container-internal paths and are broken on the host.
-LE_ARCHIVE="$LE_DIR/archive/$DOMAIN"
-
-if [ ! -d "$LE_ARCHIVE" ]; then
-    log_error "No existing certificates found. Run setup-letsencrypt.sh first."
-    exit 1
-fi
-
-# Helper to find the latest numbered cert file in archive/
-latest_file() {
-    ls -v "$LE_ARCHIVE/$1"*.pem 2>/dev/null | tail -1
-}
-
 # Record cert fingerprint before renewal to detect changes
 BEFORE_HASH=$(openssl x509 -in "$KEYS_DIR/server.crt" -noout -fingerprint -sha256 2>/dev/null)
 
@@ -82,28 +68,39 @@ if [ $CERTBOT_EXIT -ne 0 ]; then
     exit 1
 fi
 
-# Check if cert actually changed by comparing latest archive file to current
-FULLCHAIN=$(latest_file "fullchain")
-AFTER_HASH=$(openssl x509 -in "$FULLCHAIN" -noout -fingerprint -sha256 2>/dev/null)
+# Check if cert actually changed. Read the current fullchain from inside the
+# certbot volume (archive/ is root-owned and live/ symlinks use container paths,
+# so both are unreadable from the host — must read inside a container).
+AFTER_HASH=$(docker run --rm \
+    -v "$LE_DIR:/etc/letsencrypt:ro" \
+    alpine sh -c "cat /etc/letsencrypt/live/$DOMAIN/fullchain.pem" \
+    | openssl x509 -noout -fingerprint -sha256 2>/dev/null)
 
 if [ "$BEFORE_HASH" = "$AFTER_HASH" ]; then
     log_info "Certificate not yet due for renewal. No changes needed."
     exit 0
 fi
 
-# Certificate was renewed — copy latest archive files to data/keys/
+# Certificate was renewed — copy from certbot volume to data/keys/
 log_info "Certificate renewed. Copying to data/keys/..."
 
-PRIVKEY=$(latest_file "privkey")
-CHAIN=$(latest_file "chain")
+docker run --rm \
+    -v "$LE_DIR:/etc/letsencrypt:ro" \
+    -v "$KEYS_DIR:/output" \
+    alpine sh -c "
+        cd /etc/letsencrypt/live/$DOMAIN || exit 1
+        cp fullchain.pem /output/server.crt && \
+        cp privkey.pem   /output/server.key && \
+        cp chain.pem     /output/ca.crt && \
+        cp chain.pem     /output/ca.pem && \
+        chmod 644 /output/server.crt /output/ca.crt /output/ca.pem && \
+        chmod 600 /output/server.key
+    "
 
-cp "$FULLCHAIN" "$KEYS_DIR/server.crt"
-cp "$PRIVKEY"   "$KEYS_DIR/server.key"
-cp "$CHAIN"     "$KEYS_DIR/ca.crt"
-cp "$CHAIN"     "$KEYS_DIR/ca.pem"
-
-chmod 644 "$KEYS_DIR/server.crt" "$KEYS_DIR/ca.crt" "$KEYS_DIR/ca.pem"
-chmod 600 "$KEYS_DIR/server.key"
+if [ $? -ne 0 ]; then
+    log_error "Failed to copy certificates from certbot volume"
+    exit 1
+fi
 
 log_success "Certificates copied to data/keys/"
 
