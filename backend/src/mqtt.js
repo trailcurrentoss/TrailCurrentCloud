@@ -26,7 +26,8 @@ const TOPICS = {
     AIRQUALITY_TEMP_AND_HUMIDITY: `${MQTT_ROOT}/${MQTT_AIRQUALITY}/temphumid`,
     GPS_LAT_LON: `${MQTT_ROOT}/${MQTT_GPS}/latlon`,
     GPS_ALT: `${MQTT_ROOT}/${MQTT_GPS}/alt`,
-    GPS_GNSS_DETAILS: `${MQTT_ROOT}/${MQTT_GPS}/details`
+    GPS_GNSS_DETAILS: `${MQTT_ROOT}/${MQTT_GPS}/details`,
+    DEPLOYMENT_AVAILABLE: `${MQTT_ROOT}/deployment/available`
 };
 
 class MqttService {
@@ -355,6 +356,19 @@ class MqttService {
         const topic = `${MQTT_ROOT}/${MQTT_LIGHTS}/${lightId}/${MSG_STATUS}`;
         console.log(`Publishing light status to ${topic}:`, payload);
         this.client.publish(topic, JSON.stringify(payload), { qos: 1 });
+        return true;
+    }
+
+    // Publish deployment package available notification
+    publishDeploymentAvailable(payload) {
+        if (!this.connected) {
+            console.warn('MQTT not connected, cannot publish deployment notification');
+            return false;
+        }
+
+        const topic = TOPICS.DEPLOYMENT_AVAILABLE;
+        console.log(`Publishing deployment available to ${topic}:`, payload);
+        this.client.publish(topic, JSON.stringify(payload), { qos: 1, retain: true });
         return true;
     }
 

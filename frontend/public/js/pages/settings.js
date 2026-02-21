@@ -59,6 +59,30 @@ export const settingsPage = {
                 </button>
             </div>
 
+            <!-- API Keys -->
+            <div class="card settings-item-vertical">
+                <div class="settings-item-header">
+                    <span class="settings-label">API Keys</span>
+                    <p class="settings-description">Generate API keys for programmatic access to your TrailCurrent system</p>
+                </div>
+                <div class="api-keys-container">
+                    <div class="api-keys-actions">
+                        <input type="text" id="api-key-name" class="api-key-input"
+                               placeholder="Enter a name for this API key (e.g., 'Edge Device')" maxlength="100">
+                        <button class="api-key-btn" id="create-api-key-btn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                <path d="M12 5v14M5 12h14"></path>
+                            </svg>
+                            Create API Key
+                        </button>
+                    </div>
+                    <div id="api-key-message" class="api-key-message hidden"></div>
+                    <div id="api-keys-list" class="api-keys-list">
+                        <!-- API keys will be rendered here -->
+                    </div>
+                </div>
+            </div>
+
             <!-- Change Password -->
             <div class="card settings-item-vertical">
                 <div class="settings-item-header">
@@ -184,6 +208,18 @@ export const settingsPage = {
             });
         }
 
+        // API Keys
+        const createApiKeyBtn = document.getElementById('create-api-key-btn');
+        const apiKeyNameInput = document.getElementById('api-key-name');
+        if (createApiKeyBtn && apiKeyNameInput) {
+            createApiKeyBtn.addEventListener('click', async () => {
+                await this.handleCreateApiKey(apiKeyNameInput.value.trim());
+            });
+        }
+
+        // Load existing API keys
+        this.loadApiKeys();
+
         // Refresh app button
         const refreshBtn = document.getElementById('refresh-app-btn');
         if (refreshBtn) {
@@ -277,6 +313,151 @@ export const settingsPage = {
 
     showPasswordMessage(message, type) {
         const messageEl = document.getElementById('password-message');
+        if (messageEl) {
+            messageEl.textContent = message;
+            messageEl.classList.remove('hidden', 'success', 'error');
+            messageEl.classList.add(type);
+        }
+    },
+
+    async loadApiKeys() {
+        try {
+            const data = await API.getApiKeys();
+            this.renderApiKeys(data.keys);
+        } catch (error) {
+            console.error('Failed to load API keys:', error);
+            this.showApiKeyMessage('Failed to load API keys', 'error');
+        }
+    },
+
+    renderApiKeys(keys) {
+        const listEl = document.getElementById('api-keys-list');
+        if (!listEl) return;
+
+        if (!keys || keys.length === 0) {
+            listEl.innerHTML = `
+                <div class="api-key-empty">
+                    <p>No API keys created yet.</p>
+                    <p class="api-key-empty-sub">Create an API key to access your TrailCurrent system programmatically.</p>
+                </div>
+            `;
+            return;
+        }
+
+        listEl.innerHTML = keys.map(key => `
+            <div class="api-key-item">
+                <div class="api-key-info">
+                    <div class="api-key-name">${key.name}</div>
+                    <div class="api-key-meta">
+                        <span class="api-key-prefix">Key: ${key.key_prefix}...</span>
+                        <span class="api-key-date">Created: ${new Date(key.created_at).toLocaleDateString()}</span>
+                        ${key.last_used ? `<span class="api-key-date">Last used: ${new Date(key.last_used).toLocaleDateString()}</span>` : '<span class="api-key-date">Never used</span>'}
+                    </div>
+                </div>
+                <div class="api-key-actions">
+                    <button class="api-key-delete-btn" data-key-id="${key.id}" title="Delete API key">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <path d="M3 6h18"></path>
+                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        // Add delete event listeners
+        listEl.querySelectorAll('.api-key-delete-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const keyId = e.target.closest('.api-key-delete-btn').dataset.keyId;
+                await this.handleDeleteApiKey(keyId);
+            });
+        });
+    },
+
+    async handleCreateApiKey(name) {
+        const messageEl = document.getElementById('api-key-message');
+        const nameInput = document.getElementById('api-key-name');
+        const createBtn = document.getElementById('create-api-key-btn');
+
+        // Reset message
+        messageEl.classList.add('hidden');
+        messageEl.classList.remove('success', 'error');
+
+        // Validate
+        if (!name || name.trim().length === 0) {
+            this.showApiKeyMessage('Please enter a name for the API key', 'error');
+            return;
+        }
+
+        if (name.length > 100) {
+            this.showApiKeyMessage('API key name must be less than 100 characters', 'error');
+            return;
+        }
+
+        // Disable button during request
+        createBtn.disabled = true;
+        createBtn.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" class="spinning">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+            </svg>
+            Creating...
+        `;
+
+        try {
+            const result = await API.createApiKey(name);
+
+            // Show success message with the full key
+            messageEl.innerHTML = `
+                <div class="api-key-success">
+                    <strong>API Key Created Successfully!</strong><br>
+                    <span class="api-key-full">Full Key: <code>${result.full_key}</code></span><br>
+                    <span class="api-key-warning">Copy this key now - it will not be shown again!</span>
+                </div>
+            `;
+            messageEl.classList.remove('hidden', 'error');
+            messageEl.classList.add('success');
+
+            // Clear input
+            nameInput.value = '';
+
+            // Reload the list
+            await this.loadApiKeys();
+
+            // Auto-hide success message after 10 seconds
+            setTimeout(() => {
+                messageEl.classList.add('hidden');
+            }, 10000);
+
+        } catch (error) {
+            this.showApiKeyMessage(error.message || 'Failed to create API key', 'error');
+        } finally {
+            createBtn.disabled = false;
+            createBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path d="M12 5v14M5 12h14"></path>
+                </svg>
+                Create API Key
+            `;
+        }
+    },
+
+    async handleDeleteApiKey(keyId) {
+        if (!confirm('Are you sure you want to delete this API key? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            await API.deleteApiKey(keyId);
+            this.showApiKeyMessage('API key deleted successfully', 'success');
+            await this.loadApiKeys();
+        } catch (error) {
+            this.showApiKeyMessage(error.message || 'Failed to delete API key', 'error');
+        }
+    },
+
+    showApiKeyMessage(message, type) {
+        const messageEl = document.getElementById('api-key-message');
         if (messageEl) {
             messageEl.textContent = message;
             messageEl.classList.remove('hidden', 'success', 'error');

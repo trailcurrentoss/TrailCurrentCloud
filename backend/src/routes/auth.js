@@ -9,6 +9,10 @@ function generateToken() {
     return crypto.randomBytes(32).toString('hex');
 }
 
+function generateApiKey() {
+    return 'rv_' + crypto.randomBytes(32).toString('hex');
+}
+
 module.exports = (db) => {
     const users = db.collection('users');
     const sessions = db.collection('sessions');
@@ -193,6 +197,175 @@ module.exports = (db) => {
         }
     });
 
+    // GET /api/auth/api-keys
+    router.get('/api-keys', async (req, res) => {
+        try {
+            const token = req.headers.authorization?.replace('Bearer ', '');
+
+            if (!token) {
+                return res.status(401).json({ error: 'Authentication required' });
+            }
+
+            const session = await sessions.findOne({
+                token,
+                expires_at: { $gt: new Date() }
+            });
+
+            if (!session) {
+                return res.status(401).json({ error: 'Invalid or expired session' });
+            }
+
+            const user = await users.findOne({ _id: session.user_id });
+
+            if (!user) {
+                return res.status(401).json({ error: 'User not found' });
+            }
+
+            const apiKeys = db.collection('api_keys');
+            const keys = await apiKeys.find({ user_id: user._id }).toArray();
+
+            res.json({
+                keys: keys.map(key => ({
+                    id: key._id,
+                    name: key.name,
+                    key_prefix: key.key_prefix,
+                    created_at: key.created_at,
+                    last_used: key.last_used,
+                    is_active: key.is_active
+                }))
+            });
+        } catch (error) {
+            console.error('Get API keys error:', error);
+            res.status(500).json({ error: 'Failed to fetch API keys' });
+        }
+    });
+
+    // POST /api/auth/api-keys
+    router.post('/api-keys', async (req, res) => {
+        try {
+            const token = req.headers.authorization?.replace('Bearer ', '');
+
+            if (!token) {
+                return res.status(401).json({ error: 'Authentication required' });
+            }
+
+            const session = await sessions.findOne({
+                token,
+                expires_at: { $gt: new Date() }
+            });
+
+            if (!session) {
+                return res.status(401).json({ error: 'Invalid or expired session' });
+            }
+
+            const user = await users.findOne({ _id: session.user_id });
+
+            if (!user) {
+                return res.status(401).json({ error: 'User not found' });
+            }
+
+            const { name } = req.body;
+
+            if (!name || name.trim().length === 0) {
+                return res.status(400).json({ error: 'API key name is required' });
+            }
+
+            if (name.length > 100) {
+                return res.status(400).json({ error: 'API key name must be less than 100 characters' });
+            }
+
+            const apiKeys = db.collection('api_keys');
+
+            // Check if user already has 5 active keys
+            const activeKeysCount = await apiKeys.countDocuments({
+                user_id: user._id,
+                is_active: true
+            });
+
+            if (activeKeysCount >= 5) {
+                return res.status(400).json({ error: 'Maximum of 5 active API keys allowed per user' });
+            }
+
+            const fullKey = generateApiKey();
+            const keyPrefix = fullKey.substring(0, 10);
+
+            const apiKey = {
+                user_id: user._id,
+                name: name.trim(),
+                key_prefix: keyPrefix,
+                key_hash: await bcrypt.hash(fullKey, 10),
+                is_active: true,
+                created_at: new Date(),
+                last_used: null
+            };
+
+            const result = await apiKeys.insertOne(apiKey);
+
+            res.json({
+                id: result.insertedId,
+                name: apiKey.name,
+                key_prefix: apiKey.key_prefix,
+                full_key: fullKey,
+                created_at: apiKey.created_at,
+                last_used: apiKey.last_used,
+                is_active: apiKey.is_active
+            });
+        } catch (error) {
+            console.error('Create API key error:', error);
+            res.status(500).json({ error: 'Failed to create API key' });
+        }
+    });
+
+    // DELETE /api/auth/api-keys/:id
+    router.delete('/api-keys/:id', async (req, res) => {
+        try {
+            const token = req.headers.authorization?.replace('Bearer ', '');
+
+            if (!token) {
+                return res.status(401).json({ error: 'Authentication required' });
+            }
+
+            const session = await sessions.findOne({
+                token,
+                expires_at: { $gt: new Date() }
+            });
+
+            if (!session) {
+                return res.status(401).json({ error: 'Invalid or expired session' });
+            }
+
+            const user = await users.findOne({ _id: session.user_id });
+
+            if (!user) {
+                return res.status(401).json({ error: 'User not found' });
+            }
+
+            const apiKeys = db.collection('api_keys');
+
+            const ObjectId = require('mongodb').ObjectId;
+            let keyId;
+            try {
+                keyId = new ObjectId(req.params.id);
+            } catch (err) {
+                return res.status(400).json({ error: 'Invalid API key ID format' });
+            }
+
+            const result = await apiKeys.deleteOne({
+                _id: keyId,
+                user_id: user._id
+            });
+
+            if (result.deletedCount === 0) {
+                return res.status(404).json({ error: 'API key not found' });
+            }
+
+            res.json({ message: 'API key deleted successfully' });
+        } catch (error) {
+            console.error('Delete API key error:', error);
+            res.status(500).json({ error: 'Failed to delete API key' });
+        }
+    });
+
     return router;
 };
 
@@ -200,6 +373,7 @@ module.exports = (db) => {
 module.exports.authMiddleware = (db) => {
     const sessions = db.collection('sessions');
     const users = db.collection('users');
+    const apiKeys = db.collection('api_keys');
 
     return async (req, res, next) => {
         // Skip auth for auth routes and health check
@@ -207,14 +381,13 @@ module.exports.authMiddleware = (db) => {
             return next();
         }
 
-        const token = req.headers.authorization?.replace('Bearer ', '');
-
+        const authHeader = req.headers.authorization;
         const isBrowserNavigation = () => {
             const accept = req.headers.accept || '';
             return accept.includes('text/html') && !req.xhr && req.headers['x-requested-with'] !== 'XMLHttpRequest';
         };
 
-        if (!token) {
+        if (!authHeader) {
             if (isBrowserNavigation()) {
                 return res.redirect('/#login');
             }
@@ -222,33 +395,86 @@ module.exports.authMiddleware = (db) => {
         }
 
         try {
-            const session = await sessions.findOne({
-                token,
-                expires_at: { $gt: new Date() }
-            });
+            // Check if it's a session token (Bearer token)
+            if (authHeader.startsWith('Bearer ')) {
+                const token = authHeader.replace('Bearer ', '');
+                const session = await sessions.findOne({
+                    token,
+                    expires_at: { $gt: new Date() }
+                });
 
-            if (!session) {
-                if (isBrowserNavigation()) {
-                    return res.redirect('/#login');
+                if (!session) {
+                    if (isBrowserNavigation()) {
+                        return res.redirect('/#login');
+                    }
+                    return res.status(401).json({ error: 'Invalid or expired session' });
                 }
-                return res.status(401).json({ error: 'Invalid or expired session' });
+
+                const user = await users.findOne({ _id: session.user_id });
+
+                if (!user) {
+                    if (isBrowserNavigation()) {
+                        return res.redirect('/#login');
+                    }
+                    return res.status(401).json({ error: 'User not found' });
+                }
+
+                req.user = {
+                    id: user._id,
+                    username: user.username
+                };
+
+                next();
+                return;
             }
 
-            const user = await users.findOne({ _id: session.user_id });
+            // Check if it's an API key
+            if (authHeader.startsWith('rv_')) {
+                const apiKey = authHeader;
 
-            if (!user) {
-                if (isBrowserNavigation()) {
-                    return res.redirect('/#login');
+                // Find API key by prefix
+                const keyPrefix = apiKey.substring(0, 10);
+                const keyRecord = await apiKeys.findOne({
+                    key_prefix: keyPrefix,
+                    is_active: true
+                });
+
+                if (!keyRecord) {
+                    return res.status(401).json({ error: 'Invalid API key' });
                 }
-                return res.status(401).json({ error: 'User not found' });
+
+                // Verify the full key
+                const isValid = await bcrypt.compare(apiKey, keyRecord.key_hash);
+
+                if (!isValid) {
+                    return res.status(401).json({ error: 'Invalid API key' });
+                }
+
+                // Update last used timestamp
+                await apiKeys.updateOne(
+                    { _id: keyRecord._id },
+                    { $set: { last_used: new Date() } }
+                );
+
+                // Get user info
+                const user = await users.findOne({ _id: keyRecord.user_id });
+
+                if (!user) {
+                    return res.status(401).json({ error: 'Invalid API key' });
+                }
+
+                req.user = {
+                    id: user._id,
+                    username: user.username
+                };
+
+                next();
+                return;
             }
 
-            req.user = {
-                id: user._id,
-                username: user.username
-            };
+            // Invalid auth header format
+            return res.status(401).json({ error: 'Invalid authentication format' });
 
-            next();
         } catch (error) {
             console.error('Auth middleware error:', error);
             res.status(500).json({ error: 'Authentication error' });

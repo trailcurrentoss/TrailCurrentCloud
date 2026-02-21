@@ -190,6 +190,33 @@ class API {
         });
     }
 
+    // API Keys
+    static async getApiKeys() {
+        return this.request('/auth/api-keys');
+    }
+
+    static async createApiKey(name) {
+        return this.request('/auth/api-keys', {
+            method: 'POST',
+            body: JSON.stringify({ name })
+        });
+    }
+
+    static async deleteApiKey(id) {
+        return this.request(`/auth/api-keys/${id}`, {
+            method: 'DELETE'
+        });
+    }
+
+    // Deployments
+    static async getDeployments() {
+        return this.request('/deployments');
+    }
+
+    static async deleteDeployment(id) {
+        return this.request(`/deployments/${id}`, { method: 'DELETE' });
+    }
+
     // Health check
     static async healthCheck() {
         return this.request('/health');

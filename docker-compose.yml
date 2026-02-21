@@ -27,8 +27,10 @@ services:
       - MQTT_PASSWORD=${MQTT_PASSWORD}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - TLS_CERT_HOSTNAME=${TLS_CERT_HOSTNAME}
+      - DEPLOYMENT_STORAGE_PATH=/data/deployments
     volumes:
       - ./data/keys/ca.pem:/app/certs/ca.pem:ro
+      - ./data/deployments:/data/deployments
     restart: unless-stopped
     depends_on:
       - mosquitto

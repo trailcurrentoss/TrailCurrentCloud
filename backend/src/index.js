@@ -17,6 +17,8 @@ const energyRoutes = require('./routes/energy');
 const settingsRoutes = require('./routes/settings');
 const waterRoutes = require('./routes/water');
 const airqualityRoutes = require('./routes/airquality');
+const deploymentsRoutes = require('./routes/deployments');
+const deploymentDownloadRoutes = require('./routes/deploymentDownload');
 
 const app = express();
 const server = http.createServer(app);
@@ -47,7 +49,7 @@ async function startServer() {
         // Auth routes (public)
         app.use('/api/auth', authRoutes(db));
 
-        // Auth middleware - protect all routes below
+        // Auth middleware - protect all routes below (supports both Bearer tokens and rv_ API keys)
         app.use(authMiddleware(db));
 
         // API Routes (protected)
@@ -58,6 +60,8 @@ async function startServer() {
         app.use('/api/settings', settingsRoutes(db));
         app.use('/api/water', waterRoutes(db));
         app.use('/api/airquality', airqualityRoutes(db));
+        app.use('/api/deployments', deploymentsRoutes(db));
+        app.use('/api/deployment-download', deploymentDownloadRoutes(db));
 
         // Error handling middleware
         app.use((err, req, res, next) => {

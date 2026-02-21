@@ -10,6 +10,7 @@ import { airqualityPage } from './pages/airquality.js';
 import { settingsPage } from './pages/settings.js';
 import { loginPage } from './pages/login.js';
 import { mapPage } from './pages/map.js';
+import { deploymentsPage } from './pages/deployments.js';
 
 class App {
     constructor() {
@@ -77,6 +78,7 @@ class App {
             .register('water', waterPage)
             .register('airquality', airqualityPage)
             .register('map', mapPage)
+            .register('deployments', deploymentsPage)
             .register('settings', settingsPage);
 
         // Initialize navigation
@@ -193,6 +195,14 @@ class App {
                     </svg>
                     <span>Map</span>
                 </button>
+                <button class="nav-btn nav-overflow-item" data-page="deployments">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <span>Deploy</span>
+                </button>
                 <button class="nav-btn nav-overflow-item" data-page="settings">
                     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="3"></circle>
@@ -229,6 +239,14 @@ class App {
                                 <circle cx="12" cy="10" r="3"></circle>
                             </svg>
                             <span>Map</span>
+                        </button>
+                        <button class="nav-overflow-btn" data-page="deployments">
+                            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <span>Deploy</span>
                         </button>
                         <button class="nav-overflow-btn" data-page="settings">
                             <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

@@ -1447,6 +1447,291 @@ body {
     }
 }
 
+/* Deployment upload progress */
+.upload-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 8px 0;
+}
+
+.upload-progress-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+/* Deployment list */
+.deployment-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.deployment-list-item:last-child {
+    border-bottom: none;
+}
+
+.deployment-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.deployment-version {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.deployment-meta {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.deployment-delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: none;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.deployment-delete-btn:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.deployment-delete-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* API Key management */
+.api-keys-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.api-keys-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.api-key-input {
+    flex: 1;
+    min-width: 250px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 2px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.api-key-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(82, 164, 65, 0.15);
+}
+
+.api-key-input::placeholder {
+    color: var(--text-muted);
+}
+
+.api-key-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: none;
+    background: var(--primary);
+    color: var(--btn-text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.api-key-btn:hover:not(:disabled) {
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
+    box-shadow: var(--glow-primary);
+}
+
+.api-key-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.api-key-btn svg {
+    flex-shrink: 0;
+}
+
+.api-key-btn svg.spinning {
+    animation: spin 1s linear infinite;
+}
+
+.api-key-message {
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.api-key-message.hidden {
+    display: none;
+}
+
+.api-key-message.success {
+    background: var(--success-bg-subtle);
+    color: var(--success);
+    border: 1px solid rgba(25, 135, 84, 0.2);
+}
+
+.api-key-message.error {
+    background: var(--danger-bg-subtle);
+    color: var(--danger);
+    border: 1px solid rgba(220, 53, 69, 0.2);
+}
+
+.api-key-success {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.api-key-full {
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    background: rgba(0, 0, 0, 0.1);
+    padding: 6px 8px;
+    border-radius: 4px;
+    word-break: break-all;
+}
+
+.api-key-warning {
+    font-size: 0.75rem;
+    color: var(--danger);
+    font-weight: 600;
+}
+
+.api-keys-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.api-key-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    transition: background 0.2s ease;
+}
+
+.api-key-item:hover {
+    background: var(--bg-card-hover);
+}
+
+.api-key-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+}
+
+.api-key-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.api-key-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.api-key-prefix {
+    font-family: 'Courier New', monospace;
+    background: rgba(0, 0, 0, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.api-key-date {
+    font-size: 0.75rem;
+}
+
+.api-key-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.api-key-delete-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.api-key-delete-btn:hover {
+    background: var(--danger-bg-subtle);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.api-key-delete-btn:active {
+    transform: scale(0.95);
+}
+
+.api-key-delete-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.api-key-empty {
+    text-align: center;
+    padding: 24px;
+    color: var(--text-muted);
+}
+
+.api-key-empty-sub {
+    font-size: 0.875rem;
+    margin-top: 8px;
+}
+
 /* Page transitions */
 .page-enter {
     opacity: 0;
