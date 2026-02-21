@@ -27,14 +27,14 @@ Dockerized microservices stack:
 - **PWA** - Installable, works offline with service worker
 - **Real-time Updates** - WebSocket for live data sync from vehicle via MQTT
 
-## Quick Start
+## Local Development
 
 ### Prerequisites
 
 - Docker and Docker Compose
 - OpenSSL (for self-signed certificate generation)
 
-### Local Development Setup
+### Setup
 
 1. **Clone and configure:**
 
@@ -64,39 +64,6 @@ Dockerized microservices stack:
 
    Accept the self-signed certificate warning on first visit.
 
-### Production Setup (Let's Encrypt)
-
-1. **Configure environment:**
-
-   ```bash
-   cp .env.example .env
-   # Set TLS_CERT_HOSTNAME to your public domain
-   # Set LETSENCRYPT_EMAIL for certificate registration
-   # Set FRONTEND_PORT=443
-   # Set FRONTEND_HTTP_PORT=80
-   ```
-
-2. **Obtain Let's Encrypt certificates:**
-
-   ```bash
-   ./scripts/setup-letsencrypt.sh
-   ```
-
-   Port 80 must be available and DNS must point to this server.
-
-3. **Start services:**
-
-   ```bash
-   docker compose up -d
-   ```
-
-4. **Set up automatic certificate renewal:**
-
-   ```bash
-   crontab -e
-   # Add: 0 0,12 * * * /path/to/scripts/renew-certs.sh >> /var/log/trailcurrent-cert-renewal.log 2>&1
-   ```
-
 ### Development Mode
 
 Enables hot-reload for frontend changes and debug ports:
@@ -104,6 +71,110 @@ Enables hot-reload for frontend changes and debug ports:
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 ```
+
+## Production Deployment
+
+### Prerequisites
+
+- A Linux server with Docker and Docker Compose installed
+- A public domain name with a DNS A record pointing to the server
+- Ports 80 and 443 open in the firewall
+- Ports 8883 open if edge devices connect to MQTT directly
+
+### First-Time Server Setup
+
+1. **Clone the repository onto the server:**
+
+   ```bash
+   git clone <repository-url> /opt/trailcurrent-cloud
+   cd /opt/trailcurrent-cloud
+   ```
+
+2. **Configure environment:**
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Edit `.env` and set:
+
+   ```bash
+   TLS_CERT_HOSTNAME=cloud.yourdomain.com
+   LETSENCRYPT_EMAIL=you@yourdomain.com
+   FRONTEND_PORT=443
+   FRONTEND_HTTP_PORT=80
+   ADMIN_PASSWORD=<strong-password>
+   MQTT_USERNAME=<mqtt-user>
+   MQTT_PASSWORD=<mqtt-password>
+   ```
+
+3. **Obtain Let's Encrypt certificates:**
+
+   ```bash
+   ./scripts/setup-letsencrypt.sh
+   ```
+
+   This runs certbot in standalone mode on port 80 to complete the ACME challenge. Nothing else should be bound to port 80 at this point.
+
+4. **Prepare map tiles** (if using the map feature):
+
+   ```bash
+   # Place your .mbtiles file at:
+   # data/tileserver/north-america.mbtiles
+   # See DOCS/GeneratingMapTiles.md for generation instructions
+   ```
+
+5. **Start services:**
+
+   ```bash
+   docker compose up -d
+   ```
+
+6. **Set up automatic certificate renewal:**
+
+   Let's Encrypt certificates expire after 90 days. Add a cron job to renew automatically:
+
+   ```bash
+   crontab -e
+   ```
+
+   Add this line:
+
+   ```
+   0 0,12 * * * /opt/trailcurrent-cloud/scripts/renew-certs.sh >> /var/log/trailcurrent-cert-renewal.log 2>&1
+   ```
+
+   The renewal script checks twice daily, only renews when needed, copies updated certs to `data/keys/`, reloads nginx, and restarts mosquitto.
+
+7. **Verify:**
+
+   ```
+   https://cloud.yourdomain.com
+   ```
+
+   The browser should show a trusted certificate with no warnings.
+
+### Updating a Running Deployment
+
+To deploy code updates to an existing server:
+
+```bash
+cd /opt/trailcurrent-cloud
+git pull
+docker compose up -d --build
+```
+
+No certificate or environment changes are needed — `data/keys/`, `data/letsencrypt/`, `.env`, and MongoDB data persist across rebuilds.
+
+### Manual Certificate Renewal
+
+If the cron job is not configured, or you need to force a renewal:
+
+```bash
+./scripts/renew-certs.sh
+```
+
+This requires the services to be running (nginx serves the ACME challenge via webroot mode).
 
 ## TLS Certificates
 
