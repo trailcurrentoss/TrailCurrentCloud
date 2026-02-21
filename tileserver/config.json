@@ -16,8 +16,8 @@
     }
   },
   "data": {
-    "north-america": {
-      "mbtiles": "/data/tiles/north-america.mbtiles"
+    "map": {
+      "mbtiles": "/data/tiles/map.mbtiles"
     }
   }
 }

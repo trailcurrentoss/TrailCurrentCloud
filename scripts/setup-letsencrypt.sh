@@ -197,7 +197,7 @@ display_next_steps() {
 
     echo "1. Prepare map tiles (if using the map feature):"
     echo "   mkdir -p $PROJECT_ROOT/data/tileserver"
-    echo "   # Place your .mbtiles file at: data/tileserver/north-america.mbtiles"
+    echo "   # Place your .mbtiles file at: data/tileserver/map.mbtiles"
     echo "   # See DOCS/GeneratingMapTiles.md for generation instructions"
     echo "   # Without this file the tileserver container will not start."
     echo ""

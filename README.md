@@ -134,7 +134,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
    ```bash
    mkdir -p ~/TrailCurrentCloud/data/tileserver
    # Place your .mbtiles file at:
-   # ~/TrailCurrentCloud/data/tileserver/north-america.mbtiles
+   # ~/TrailCurrentCloud/data/tileserver/map.mbtiles
    # See DOCS/GeneratingMapTiles.md for generation instructions
    ```
 
@@ -249,7 +249,7 @@ The tileserver requires pre-generated `.mbtiles` vector tiles:
    ./generate-tiles.sh
    ```
 
-3. Generated tiles go to `data/tileserver/north-america.mbtiles`
+3. Generated tiles go to `data/tileserver/map.mbtiles`
 
 See [DOCS/GeneratingMapTiles.md](DOCS/GeneratingMapTiles.md) for details.
 

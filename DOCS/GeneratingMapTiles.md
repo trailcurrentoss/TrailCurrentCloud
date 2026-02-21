@@ -36,7 +36,7 @@
    ./generate-tiles.sh
    ```
 
-   This requires Java 21+ and will create `tileserver/data/north-america.mbtiles`.
+   This requires Java 21+ and will create `tileserver/data/map.mbtiles`.
 
 2. **Start the services:**
 

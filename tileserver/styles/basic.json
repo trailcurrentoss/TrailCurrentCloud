@@ -5,7 +5,7 @@
   "sources": {
     "openmaptiles": {
       "type": "vector",
-      "url": "mbtiles://{north-america}"
+      "url": "mbtiles://{map}"
     }
   },
   "layers": [
