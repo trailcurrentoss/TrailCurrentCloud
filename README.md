@@ -84,26 +84,28 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 ### First-Time Server Setup
 
-Create a dedicated user and clone the repository into their home directory:
-
-```bash
-sudo adduser trailcurrent
-sudo usermod -aG docker trailcurrent
-su - trailcurrent
-```
-
-Clone the repository contents directly into the home directory (dedicated to running the cloud):
-
-```bash
-git init
-git remote add origin <repository-url>
-git fetch origin
-git checkout main
-```
-
-1. **Configure environment:**
+1. **Create a dedicated user:**
 
    ```bash
+   sudo adduser trailcurrent
+   sudo usermod -aG docker trailcurrent
+   ```
+
+2. **Deploy the code:**
+
+   How you get the code onto the server is up to you — git clone, CI/CD pipeline, rsync, scp, etc. For a simple initial setup:
+
+   ```bash
+   su - trailcurrent
+   git clone <repository-url>
+   ```
+
+   This creates `~/TrailCurrentCloud`. All remaining steps and paths reference this directory.
+
+3. **Configure environment:**
+
+   ```bash
+   cd ~/TrailCurrentCloud
    cp .env.example .env
    ```
 
@@ -119,7 +121,7 @@ git checkout main
    MQTT_PASSWORD=<mqtt-password>
    ```
 
-2. **Obtain Let's Encrypt certificates:**
+4. **Obtain Let's Encrypt certificates:**
 
    ```bash
    ./scripts/setup-letsencrypt.sh
@@ -127,21 +129,21 @@ git checkout main
 
    This runs certbot in standalone mode on port 80 to complete the ACME challenge. Nothing else should be bound to port 80 at this point.
 
-3. **Prepare map tiles** (if using the map feature):
+5. **Prepare map tiles** (if using the map feature):
 
    ```bash
    # Place your .mbtiles file at:
-   # data/tileserver/north-america.mbtiles
+   # ~/TrailCurrentCloud/data/tileserver/north-america.mbtiles
    # See DOCS/GeneratingMapTiles.md for generation instructions
    ```
 
-4. **Start services:**
+6. **Start services:**
 
    ```bash
    docker compose up -d
    ```
 
-5. **Set up automatic certificate renewal:**
+7. **Set up automatic certificate renewal:**
 
    Let's Encrypt certificates expire after 90 days. Add a cron job to renew automatically:
 
@@ -152,14 +154,14 @@ git checkout main
    Add this line:
 
    ```
-   0 0,12 * * * ~/scripts/renew-certs.sh >> ~/logs/cert-renewal.log 2>&1
+   0 0,12 * * * ~/TrailCurrentCloud/scripts/renew-certs.sh >> ~/TrailCurrentCloud/logs/cert-renewal.log 2>&1
    ```
 
-   Create the logs directory: `mkdir -p ~/logs`
+   Create the logs directory: `mkdir -p ~/TrailCurrentCloud/logs`
 
    The renewal script checks twice daily, only renews when needed, copies updated certs to `data/keys/`, reloads nginx, and restarts mosquitto.
 
-6. **Verify:**
+8. **Verify:**
 
    ```
    https://cloud.yourdomain.com
@@ -169,11 +171,10 @@ git checkout main
 
 ### Updating a Running Deployment
 
-To deploy code updates to an existing server:
+After deploying updated code to `~/TrailCurrentCloud` (however you choose to deliver it), rebuild and restart:
 
 ```bash
-su - trailcurrent
-git pull
+cd ~/TrailCurrentCloud
 docker compose up -d --build
 ```
 
@@ -184,6 +185,7 @@ No certificate or environment changes are needed — `data/keys/`, `data/letsenc
 If the cron job is not configured, or you need to force a renewal:
 
 ```bash
+cd ~/TrailCurrentCloud
 ./scripts/renew-certs.sh
 ```
 
