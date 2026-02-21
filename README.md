@@ -90,10 +90,16 @@ Create a dedicated user and clone the repository into their home directory:
 sudo adduser trailcurrent
 sudo usermod -aG docker trailcurrent
 su - trailcurrent
-git clone <repository-url> ~
 ```
 
-The repository contents live directly in `~/` — no subdirectory needed since this user is dedicated to running the cloud.
+Clone the repository contents directly into the home directory (dedicated to running the cloud):
+
+```bash
+git init
+git remote add origin <repository-url>
+git fetch origin
+git checkout main
+```
 
 1. **Configure environment:**
 
