@@ -122,4 +122,13 @@ else
     log_error "Failed to restart mosquitto. Restart it manually."
 fi
 
+# Restart backend (reads ca.pem once at startup for MQTT TLS verification)
+log_info "Restarting backend..."
+docker compose -f "$PROJECT_ROOT/docker-compose.yml" restart backend 2>/dev/null
+if [ $? -eq 0 ]; then
+    log_success "Backend restarted"
+else
+    log_error "Failed to restart backend. Restart it manually."
+fi
+
 log_success "Certificate renewal complete for $DOMAIN"

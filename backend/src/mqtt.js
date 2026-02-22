@@ -58,7 +58,7 @@ class MqttService {
         // Load CA certificate for TLS connections
         const caPath = path.join('/app/certs', 'ca.pem');
         if (brokerUrl.startsWith('mqtts://') && fs.existsSync(caPath)) {
-            options.ca = fs.readFileSync(caPath);
+            options.ca = [fs.readFileSync(caPath), ...tls.rootCertificates];
             // Verify cert against expected hostname since internal Docker hostname differs
             const expectedHost = process.env.TLS_CERT_HOSTNAME;
             if (expectedHost) {
