@@ -40,8 +40,10 @@ export class Thermostat {
     async init() {
         // Fetch initial data
         try {
-            this.data = await API.getThermostat();
-            this.dataTempAndHumidity = {};
+            const thermostatData = await API.getThermostat();
+            if (thermostatData) {
+                this.data = thermostatData;
+            }
             this.updateDisplay();
         } catch (error) {
             console.error('Failed to fetch thermostat data:', error);
@@ -53,7 +55,9 @@ export class Thermostat {
 
         // Setup WebSocket listener
         this.wsHandler = (data) => {
-            this.data = data;
+            if (data) {
+                this.data = data;
+            }
             this.updateDisplay();
         };
         wsClient.on('thermostat', this.wsHandler);
