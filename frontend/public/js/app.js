@@ -133,7 +133,8 @@ class App {
             <!-- Header with clock -->
             <header class="app-header">
                 <div class="header-left">
-                    <span class="app-title">TrailCurrent</span>
+                    <img src="/icons/logo-white.svg" alt="TrailCurrent" class="app-logo app-logo-dark">
+                    <img src="/icons/logo-color.svg" alt="TrailCurrent" class="app-logo app-logo-light">
                 </div>
                 <div class="header-right">
                     <span id="clock" class="clock"></span>
