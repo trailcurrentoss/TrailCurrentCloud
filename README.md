@@ -1,6 +1,6 @@
 # TrailCurrent Cloud
 
-Cloud-hosted Progressive Web App (PWA) for remote monitoring and control of TrailCurrent trailer systems. Provides a responsive web interface accessible from any browser.
+Cloud-hosted Progressive Web App (PWA) for remote monitoring and control of [TrailCurrent](https://trailcurrent.com) trailer systems. Provides a responsive web interface accessible from any browser.
 
 ## Architecture
 
