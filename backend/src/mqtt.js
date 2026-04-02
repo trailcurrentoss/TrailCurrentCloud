@@ -13,6 +13,7 @@ const MQTT_GPS = 'gps';
 const MQTT_LEVEL = 'level';
 const MQTT_RELAYS = 'relays';
 const MQTT_CONFIG = 'config';
+const MQTT_SYSTEM = 'system';
 
 // MQTT Message Types
 const MSG_COMMAND = 'command';
@@ -37,7 +38,8 @@ const TOPICS = {
     DEPLOYMENT_AVAILABLE: `${MQTT_ROOT}/deployment/available`,
     DEPLOYMENT_STATUS: `${MQTT_ROOT}/deployment/status`,
     PDM_CHANNELS_CONFIG: `${MQTT_ROOT}/${MQTT_CONFIG}/pdm_channels`,
-    SYSTEM_CONFIG: `${MQTT_ROOT}/${MQTT_CONFIG}/system`
+    SYSTEM_CONFIG: `${MQTT_ROOT}/${MQTT_CONFIG}/system`,
+    SYSTEM_STATS: `${MQTT_ROOT}/${MQTT_SYSTEM}/stats`
 };
 
 class MqttService {
@@ -229,6 +231,15 @@ class MqttService {
                 console.log('Subscribed to system config topic');
             }
         });
+
+        // Subscribe to system stats topic (CPU temp, usage, fan speed from Pi)
+        this.client.subscribe(TOPICS.SYSTEM_STATS, (err) => {
+            if (err) {
+                console.error('Failed to subscribe to system stats:', err);
+            } else {
+                console.log('Subscribed to system stats topic');
+            }
+        });
     }
 
     handleMessage(topic, message) {
@@ -279,6 +290,8 @@ class MqttService {
                 this.handlePdmChannelConfig(payload);
             } else if (parts[1] === MQTT_CONFIG && parts[2] === 'system') {
                 this.handleSystemConfig(payload);
+            } else if (parts[1] === MQTT_SYSTEM && parts[2] === 'stats') {
+                this.handleSystemStats(payload);
             }
         } catch (error) {
             console.error('Error handling MQTT message:', error);
@@ -556,6 +569,17 @@ class MqttService {
     handleLevelStatus(payload) {
         if (this.broadcast) {
             this.broadcast('level_status', payload);
+        }
+    }
+
+    // Handle system stats from Pi (CPU temp, usage, fan speed)
+    handleSystemStats(payload) {
+        if (this.broadcast) {
+            this.broadcast('system_stats', {
+                cpu_temp_c: payload.cpu_temp_c,
+                cpu_percent: payload.cpu_percent,
+                fan_percent: payload.fan_percent,
+            });
         }
     }
 

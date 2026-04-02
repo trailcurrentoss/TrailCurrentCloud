@@ -1,5 +1,5 @@
 // Settings page
-import { API } from '../api.js';
+import { API, wsClient } from '../api.js';
 
 let settings = null;
 
@@ -21,6 +21,28 @@ export const settingsPage = {
         const user = API.getUser();
 
         return `
+            <!-- System Stats -->
+            <div class="card settings-item-vertical">
+                <div class="settings-item-header">
+                    <span class="settings-label">System</span>
+                    <p class="settings-description">Compute module health</p>
+                </div>
+                <div class="system-stats-grid" id="system-stats-grid">
+                    <div class="system-stat">
+                        <span class="system-stat-label">CPU Temp</span>
+                        <span class="system-stat-value" id="stat-cpu-temp">--</span>
+                    </div>
+                    <div class="system-stat">
+                        <span class="system-stat-label">CPU Usage</span>
+                        <span class="system-stat-value" id="stat-cpu-usage">--</span>
+                    </div>
+                    <div class="system-stat">
+                        <span class="system-stat-label">Fan Speed</span>
+                        <span class="system-stat-value" id="stat-fan-speed">--</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Theme Toggle -->
             <div class="card settings-item">
                 <div>
@@ -118,6 +140,7 @@ export const settingsPage = {
 
             document.getElementById('settings-container').innerHTML = this.renderSettings();
             this.setupListeners();
+            this.setupSystemStats();
         } catch (error) {
             console.error('Failed to fetch settings:', error);
             document.getElementById('settings-container').innerHTML = '<p style="color: var(--danger);">Failed to load settings</p>';
@@ -407,7 +430,32 @@ export const settingsPage = {
         }
     },
 
+    setupSystemStats() {
+        this._statsWsHandler = (stats) => this.updateSystemStatsDisplay(stats);
+        wsClient.on('system_stats', this._statsWsHandler);
+        this._statsStaleUnsub = wsClient.onStale('system_stats', () => {
+            this.updateSystemStatsDisplay({ cpu_temp_c: null, cpu_percent: null, fan_percent: null });
+        });
+    },
+
+    updateSystemStatsDisplay(stats) {
+        const tempEl = document.getElementById('stat-cpu-temp');
+        const cpuEl = document.getElementById('stat-cpu-usage');
+        const fanEl = document.getElementById('stat-fan-speed');
+        if (tempEl) tempEl.textContent = stats.cpu_temp_c !== null ? `${stats.cpu_temp_c.toFixed(1)}°C` : '--';
+        if (cpuEl) cpuEl.textContent = stats.cpu_percent !== null ? `${stats.cpu_percent}%` : '--';
+        if (fanEl) fanEl.textContent = stats.fan_percent !== null ? `${stats.fan_percent}%` : '--';
+    },
+
     cleanup() {
         settings = null;
+        if (this._statsWsHandler) {
+            wsClient.off('system_stats', this._statsWsHandler);
+            this._statsWsHandler = null;
+        }
+        if (this._statsStaleUnsub) {
+            this._statsStaleUnsub();
+            this._statsStaleUnsub = null;
+        }
     }
 };
