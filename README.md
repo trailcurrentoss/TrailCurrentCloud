@@ -25,6 +25,7 @@ Dockerized microservices stack:
 - **Air Quality** - Temperature, humidity, IAQ index, CO2
 - **Trailer Level** - Pitch and roll indicators
 - **GPS/Map** - Real-time location with vector tile maps (MapLibre)
+- **Proximity Automation** - Phone-to-vehicle proximity detection with configurable zone radii, device registration, and automation rules that trigger lights/relays on arrival or departure
 - **Deployment Packages** - Upload firmware, track versions, resumable downloads for edge devices
 - **API Keys** - Create and manage API keys for programmatic access
 - **Settings** - Theme switching, timezone, clock format, password management
@@ -231,6 +232,59 @@ Upload firmware deployment packages through the web UI for distribution to edge 
 
 The MQTT notification includes the download URL, version, checksum, and file size so edge devices can download and verify integrity without additional API calls.
 
+## Proximity Automation
+
+Phone-to-vehicle proximity detection that triggers actions (lights, relays) when a registered device enters or leaves configurable distance zones around the vehicle.
+
+### How It Works
+
+1. **Device Registration** — From the Proximity page, register your phone with a friendly name. A UUID is generated and stored in `localStorage`, tied to your authenticated session.
+2. **Location Sharing** — Enable the "Share Location" toggle. The browser's Geolocation API sends your phone's GPS coordinates to Farwatch every 15 seconds. This works **only while the Farwatch tab is in the foreground** (standard PWA limitation).
+3. **Proximity Engine** — The backend calculates haversine distance between your phone and the vehicle's last known GPS position (received via `rv/gps/latlon` from [TrailCurrentBearing](https://github.com/TrailCurrent/TrailCurrentBearing)). A per-device state machine tracks zone transitions with hysteresis and debounce to prevent flapping.
+4. **Automation Rules** — When a zone transition fires (e.g., phone enters "arrived" zone), matching rules execute and publish `rv/lights/N/command` or `rv/relays/N/command` via MQTT. These are the same command topics the cloud-bridge already handles, so no vehicle-side changes are needed.
+
+### Zone State Machine
+
+Each registered device progresses through zones based on distance:
+
+```
+away → approaching → arrived → departed → away
+```
+
+- **Approaching** — Phone enters the outer radius (default 500m)
+- **Arrived** — Phone enters the inner radius (default 50m)
+- **Departed** — Phone moves beyond inner radius + hysteresis (default 50m + 20m)
+- **Away** — Phone moves beyond outer radius + hysteresis (default 500m + 20m)
+
+Hysteresis prevents rapid toggling at zone boundaries. The debounce timer (default 5s) requires the device to remain in the new zone before the transition fires.
+
+### Graceful Degradation
+
+The proximity engine silently skips calculations when location data is unavailable:
+
+- **No vehicle GPS** — Vehicle position not yet received or stale (>60s), skipped
+- **No phone GPS** — Browser permission denied or position unavailable, service stops gracefully
+- **Invalid coordinates** — NaN or null values rejected before distance calculation
+- **MQTT disconnected** — Rule execution and event publishing fail independently without blocking each other
+- **DB unavailable** — Config falls back to defaults, device name lookup falls back to UUID prefix
+
+### Configuration
+
+All proximity settings are adjustable from the Proximity page:
+
+| Setting | Default | Range |
+|---------|---------|-------|
+| Approaching radius | 500m | 50–5000m |
+| Arrived radius | 50m | 10–500m |
+| Hysteresis | 20m | 5–100m |
+| Debounce | 5000ms | 1000–30000ms |
+
+### Limitations
+
+- **Foreground only** — The browser Geolocation API stops when the PWA tab is backgrounded or the screen is locked. Keep Farwatch open while driving home.
+- **Cloud dependency** — Proximity requires internet connectivity on both the phone and vehicle. No proximity detection when offline.
+- **GPS accuracy** — Phone GPS accuracy in moving vehicles varies (5–50m). Location reports with accuracy worse than the arrived radius are excluded from zone transition calculations but still update the status display.
+
 ## API Keys
 
 API keys provide programmatic access to all authenticated endpoints. They follow the `rv_` prefix convention, are bcrypt-hashed in the database (never stored in plaintext), and support prefix-based lookup for efficient authentication.
@@ -276,6 +330,8 @@ The backend subscribes to MQTT topics from the vehicle's CAN-to-MQTT gateway and
 | `rv/airquality/status` | Vehicle → Cloud | Air quality readings |
 | `rv/trailer/level` | Vehicle → Cloud | Pitch and roll data |
 | `rv/gnss/position` | Vehicle → Cloud | GPS coordinates |
+| `rv/proximity/event` | Cloud → Vehicle | Proximity zone transition (approaching/arrived/departed/away) |
+| `rv/proximity/status` | Cloud → Vehicle | Periodic proximity status for active devices |
 | `rv/deployment/available` | Cloud → Vehicle | New deployment notification (retained) |
 
 ## Project Structure
@@ -288,6 +344,8 @@ The backend subscribes to MQTT topics from the vehicle's CAN-to-MQTT gateway and
 │   │   ├── websocket.js        # WebSocket server
 │   │   ├── db/
 │   │   │   └── init.js         # MongoDB connection and seeding
+│   │   ├── services/
+│   │   │   └── proximity-engine.js  # Haversine distance, zone state machine, rule execution
 │   │   └── routes/
 │   │       ├── auth.js         # Login, logout, sessions, API keys
 │   │       ├── thermostat.js   # Climate control
@@ -297,6 +355,7 @@ The backend subscribes to MQTT topics from the vehicle's CAN-to-MQTT gateway and
 │   │       ├── water.js        # Tank levels
 │   │       ├── airquality.js   # Air quality sensors
 │   │       ├── settings.js     # User preferences
+│   │       ├── proximity.js    # Device registration, location, zone config, rules
 │   │       ├── deployments.js  # Upload, list, delete packages
 │   │       └── deploymentDownload.js  # Download with Range support
 │   ├── Dockerfile
@@ -314,9 +373,12 @@ The backend subscribes to MQTT topics from the vehicle's CAN-to-MQTT gateway and
 │   │   │   │   ├── water.js    # Water tanks
 │   │   │   │   ├── airquality.js  # Air quality
 │   │   │   │   ├── map.js      # GPS + MapLibre map
+│   │   │   │   ├── proximity.js   # Proximity devices, zones, rules
 │   │   │   │   ├── deployments.js  # Firmware management
 │   │   │   │   ├── settings.js # Preferences + API keys
 │   │   │   │   └── login.js    # Authentication
+│   │   │   ├── services/
+│   │   │   │   └── location-service.js  # Browser geolocation + reporting
 │   │   │   └── components/     # Reusable UI components
 │   │   ├── css/
 │   │   │   └── main.css        # Dark/light theme styles
@@ -374,6 +436,13 @@ The backend subscribes to MQTT topics from the vehicle's CAN-to-MQTT gateway and
 | `/api/deployments/:id` | DELETE | Delete deployment package |
 | `/api/deployment-download/:id` | GET | Download package (supports Range) |
 | `/api/deployment-download/latest/info` | GET | Latest deployment metadata |
+| `/api/proximity/devices` | GET/POST | List or register proximity devices |
+| `/api/proximity/devices/:id` | DELETE | Remove a registered device |
+| `/api/proximity/location` | POST | Report phone GPS position (rate-limited) |
+| `/api/proximity/config` | GET/PUT | Zone configuration (radii, hysteresis, debounce) |
+| `/api/proximity/status` | GET | Current proximity state for all devices |
+| `/api/proximity/rules` | GET/POST | List or create automation rules |
+| `/api/proximity/rules/:id` | PUT/DELETE | Update or delete an automation rule |
 | `/api/health` | GET | Health check (no auth required) |
 
 ## Environment Variables
