@@ -42,46 +42,71 @@ class ProximityEngine {
     }
 
     async reloadConfig() {
-        const doc = await this.db.collection('proximity_config').findOne({ _id: 'main' });
-        this.config = doc || {
-            enabled: false,
-            zones: { approaching_radius_m: 500, arrived_radius_m: 50 },
-            hysteresis_m: 20,
-            debounce_ms: 5000
-        };
+        try {
+            const doc = await this.db.collection('proximity_config').findOne({ _id: 'main' });
+            this.config = doc || {
+                enabled: false,
+                zones: { approaching_radius_m: 500, arrived_radius_m: 50 },
+                hysteresis_m: 20,
+                debounce_ms: 5000
+            };
+        } catch (err) {
+            console.error('[Proximity] Failed to load config, using defaults:', err.message);
+            if (!this.config) {
+                this.config = {
+                    enabled: false,
+                    zones: { approaching_radius_m: 500, arrived_radius_m: 50 },
+                    hysteresis_m: 20,
+                    debounce_ms: 5000
+                };
+            }
+        }
     }
 
     // Called when a phone reports its location
     async processLocation(deviceUuid, latitude, longitude, accuracy) {
-        if (!this.config || !this.config.enabled) return;
+        try {
+            if (!this.config || !this.config.enabled) return;
 
-        const vehiclePos = this.mqttService.vehiclePosition;
-        if (!vehiclePos) return;
+            // Validate phone coordinates are real numbers
+            if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
 
-        // Reject stale vehicle GPS (>60s old)
-        if (Date.now() - vehiclePos.timestamp > 60000) return;
+            const vehiclePos = this.mqttService?.vehiclePosition;
+            if (!vehiclePos) return;
 
-        const distance = haversineDistance(
-            latitude, longitude,
-            vehiclePos.latitude, vehiclePos.longitude
-        );
+            // Validate vehicle coordinates are real numbers
+            if (!Number.isFinite(vehiclePos.latitude) || !Number.isFinite(vehiclePos.longitude)) return;
 
-        // Skip if phone accuracy is worse than the arrived radius
-        const arrivedRadius = this.config.zones.arrived_radius_m;
-        if (accuracy > arrivedRadius) {
-            // Still update distance for status display, but don't transition to arrived
+            // Reject stale vehicle GPS (>60s old)
+            if (Date.now() - vehiclePos.timestamp > 60000) return;
+
+            const distance = haversineDistance(
+                latitude, longitude,
+                vehiclePos.latitude, vehiclePos.longitude
+            );
+
+            // Guard against NaN from haversine (shouldn't happen with validated inputs, but be safe)
+            if (!Number.isFinite(distance)) return;
+
+            // Skip if phone accuracy is worse than the arrived radius
+            const arrivedRadius = this.config.zones.arrived_radius_m;
+            if (accuracy > arrivedRadius) {
+                // Still update distance for status display, but don't transition to arrived
+                this.updateDeviceDistance(deviceUuid, distance);
+                return;
+            }
+
+            const prevZone = this.getDeviceZone(deviceUuid);
+            const newZone = this.computeZone(prevZone, distance);
+
+            // Update stored distance
             this.updateDeviceDistance(deviceUuid, distance);
-            return;
-        }
 
-        const prevZone = this.getDeviceZone(deviceUuid);
-        const newZone = this.computeZone(prevZone, distance);
-
-        // Update stored distance
-        this.updateDeviceDistance(deviceUuid, distance);
-
-        if (newZone !== prevZone) {
-            this.scheduleTransition(deviceUuid, prevZone, newZone, distance);
+            if (newZone !== prevZone) {
+                this.scheduleTransition(deviceUuid, prevZone, newZone, distance);
+            }
+        } catch (err) {
+            console.error('[Proximity] Error processing location:', err.message);
         }
     }
 
@@ -154,13 +179,13 @@ class ProximityEngine {
     }
 
     async fireTransition(deviceUuid, prevZone, newZone, distance) {
-        // Look up device name
-        let deviceName = deviceUuid;
+        // Look up device name (non-critical — fall back to UUID prefix)
+        let deviceName = deviceUuid.substring(0, 8);
         try {
             const device = await this.db.collection('proximity_devices').findOne({ device_uuid: deviceUuid });
             if (device) deviceName = device.name;
         } catch (err) {
-            console.error('[Proximity] Error looking up device name:', err);
+            console.error('[Proximity] Error looking up device name:', err.message);
         }
 
         const event = {
@@ -174,12 +199,20 @@ class ProximityEngine {
 
         console.log(`[Proximity] ${deviceName}: ${prevZone} → ${newZone} (${event.distance_m}m)`);
 
-        // Publish event via MQTT to vehicle (for logging/display on Overlook)
-        this.mqttService.publishProximityEvent(event);
+        // Publish event via MQTT to vehicle (non-critical — don't block rule execution)
+        try {
+            this.mqttService.publishProximityEvent(event);
+        } catch (err) {
+            console.error('[Proximity] Failed to publish MQTT event:', err.message);
+        }
 
         // Broadcast to connected Farwatch WebSocket clients
-        if (this.broadcast) {
-            this.broadcast('proximity_event', event);
+        try {
+            if (this.broadcast) {
+                this.broadcast('proximity_event', event);
+            }
+        } catch (err) {
+            console.error('[Proximity] Failed to broadcast WebSocket event:', err.message);
         }
 
         // Execute matching automation rules
@@ -212,29 +245,37 @@ class ProximityEngine {
     }
 
     broadcastStatus() {
-        if (this.deviceStates.size === 0) return;
+        try {
+            if (this.deviceStates.size === 0) return;
 
-        const devices = [];
-        for (const [uuid, state] of this.deviceStates) {
-            // Skip devices that haven't reported in 5 minutes
-            if (state.lastUpdate && Date.now() - state.lastUpdate > 300000) continue;
-            devices.push({
-                device_uuid: uuid,
-                zone: state.zone,
-                distance_m: state.distance !== null ? Math.round(state.distance * 10) / 10 : null
-            });
-        }
+            const devices = [];
+            for (const [uuid, state] of this.deviceStates) {
+                // Skip devices that haven't reported in 5 minutes
+                if (state.lastUpdate && Date.now() - state.lastUpdate > 300000) continue;
+                devices.push({
+                    device_uuid: uuid,
+                    zone: state.zone,
+                    distance_m: state.distance !== null ? Math.round(state.distance * 10) / 10 : null
+                });
+            }
 
-        if (devices.length === 0) return;
+            if (devices.length === 0) return;
 
-        const status = { devices, timestamp: new Date().toISOString() };
+            const status = { devices, timestamp: new Date().toISOString() };
 
-        // Publish to vehicle via MQTT
-        this.mqttService.publishProximityStatus(status);
+            // Publish to vehicle via MQTT (non-critical)
+            try {
+                this.mqttService.publishProximityStatus(status);
+            } catch (err) {
+                // MQTT disconnected — skip silently
+            }
 
-        // Broadcast to Farwatch WebSocket clients
-        if (this.broadcast) {
-            this.broadcast('proximity_status', status);
+            // Broadcast to Farwatch WebSocket clients
+            if (this.broadcast) {
+                this.broadcast('proximity_status', status);
+            }
+        } catch (err) {
+            console.error('[Proximity] Error broadcasting status:', err.message);
         }
     }
 
