@@ -53,11 +53,26 @@ class LocationService {
 
         this.running = true;
 
-        this.watchId = navigator.geolocation.watchPosition(
-            (pos) => { this.lastPosition = pos; },
-            (err) => console.warn('[LocationService] Geolocation error:', err.message),
-            { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
-        );
+        try {
+            this.watchId = navigator.geolocation.watchPosition(
+                (pos) => { this.lastPosition = pos; },
+                (err) => {
+                    // PERMISSION_DENIED (1) — user revoked location access, stop gracefully
+                    if (err.code === 1) {
+                        console.warn('[LocationService] Location permission denied, stopping');
+                        this.stop();
+                        return;
+                    }
+                    // POSITION_UNAVAILABLE (2) or TIMEOUT (3) — transient, keep trying
+                    console.warn('[LocationService] Geolocation error:', err.message);
+                },
+                { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+            );
+        } catch (err) {
+            console.warn('[LocationService] Failed to start geolocation watch:', err.message);
+            this.running = false;
+            return;
+        }
 
         // Send location every 15 seconds
         this.sendInterval = setInterval(() => this.sendLocation(), 15000);

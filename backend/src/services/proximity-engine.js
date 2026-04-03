@@ -163,18 +163,22 @@ class ProximityEngine {
         const debounceMs = this.config.debounce_ms || 5000;
 
         state.debounceTimer = setTimeout(async () => {
-            // Re-check: the device might have moved back before debounce expired
-            const currentState = this.deviceStates.get(deviceUuid);
-            if (!currentState) return;
+            try {
+                // Re-check: the device might have moved back before debounce expired
+                const currentState = this.deviceStates.get(deviceUuid);
+                if (!currentState) return;
 
-            const recheck = this.computeZone(prevZone, currentState.distance);
-            if (recheck !== newZone) return; // Device moved back, cancel transition
+                const recheck = this.computeZone(prevZone, currentState.distance);
+                if (recheck !== newZone) return; // Device moved back, cancel transition
 
-            currentState.zone = newZone;
-            currentState.debounceTimer = null;
-            this.deviceStates.set(deviceUuid, currentState);
+                currentState.zone = newZone;
+                currentState.debounceTimer = null;
+                this.deviceStates.set(deviceUuid, currentState);
 
-            await this.fireTransition(deviceUuid, prevZone, newZone, currentState.distance);
+                await this.fireTransition(deviceUuid, prevZone, newZone, currentState.distance);
+            } catch (err) {
+                console.error('[Proximity] Error in debounce transition:', err.message);
+            }
         }, debounceMs);
     }
 
