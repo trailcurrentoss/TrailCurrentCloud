@@ -19,6 +19,8 @@ const waterRoutes = require('./routes/water');
 const airqualityRoutes = require('./routes/airquality');
 const deploymentsRoutes = require('./routes/deployments');
 const deploymentDownloadRoutes = require('./routes/deploymentDownload');
+const proximityRoutes = require('./routes/proximity');
+const proximityEngine = require('./services/proximity-engine');
 
 const app = express();
 const server = http.createServer(app);
@@ -62,6 +64,7 @@ async function startServer() {
         app.use('/api/airquality', airqualityRoutes());
         app.use('/api/deployments', deploymentsRoutes(db));
         app.use('/api/deployment-download', deploymentDownloadRoutes(db));
+        app.use('/api/proximity', proximityRoutes(db));
 
         // Error handling middleware
         app.use((err, req, res, next) => {
@@ -88,6 +91,9 @@ async function startServer() {
 
         // Initialize MQTT service
         mqttService.connect(db, broadcast);
+
+        // Initialize proximity engine
+        await proximityEngine.init(db, mqttService, broadcast);
 
         // Start server
         server.listen(PORT, '0.0.0.0', () => {

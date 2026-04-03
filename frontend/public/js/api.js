@@ -224,6 +224,66 @@ class API {
         return this.request(`/deployments/${id}`, { method: 'DELETE' });
     }
 
+    // Proximity
+    static async getProximityDevices() {
+        return this.request('/proximity/devices');
+    }
+
+    static async registerProximityDevice(device_uuid, name) {
+        return this.request('/proximity/devices', {
+            method: 'POST',
+            body: JSON.stringify({ device_uuid, name })
+        });
+    }
+
+    static async deleteProximityDevice(id) {
+        return this.request(`/proximity/devices/${id}`, { method: 'DELETE' });
+    }
+
+    static async sendProximityLocation(data) {
+        return this.request('/proximity/location', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    }
+
+    static async getProximityConfig() {
+        return this.request('/proximity/config');
+    }
+
+    static async setProximityConfig(data) {
+        return this.request('/proximity/config', {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+    }
+
+    static async getProximityStatus() {
+        return this.request('/proximity/status');
+    }
+
+    static async getProximityRules() {
+        return this.request('/proximity/rules');
+    }
+
+    static async createProximityRule(data) {
+        return this.request('/proximity/rules', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    }
+
+    static async updateProximityRule(id, data) {
+        return this.request(`/proximity/rules/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+    }
+
+    static async deleteProximityRule(id) {
+        return this.request(`/proximity/rules/${id}`, { method: 'DELETE' });
+    }
+
     // Health check
     static async healthCheck() {
         return this.request('/health');

@@ -14,6 +14,7 @@ const MQTT_LEVEL = 'level';
 const MQTT_RELAYS = 'relays';
 const MQTT_CONFIG = 'config';
 const MQTT_SYSTEM = 'system';
+const MQTT_PROXIMITY = 'proximity';
 
 // MQTT Message Types
 const MSG_COMMAND = 'command';
@@ -39,7 +40,9 @@ const TOPICS = {
     DEPLOYMENT_STATUS: `${MQTT_ROOT}/deployment/status`,
     PDM_CHANNELS_CONFIG: `${MQTT_ROOT}/${MQTT_CONFIG}/pdm_channels`,
     SYSTEM_CONFIG: `${MQTT_ROOT}/${MQTT_CONFIG}/system`,
-    SYSTEM_STATS: `${MQTT_ROOT}/${MQTT_SYSTEM}/stats`
+    SYSTEM_STATS: `${MQTT_ROOT}/${MQTT_SYSTEM}/stats`,
+    PROXIMITY_EVENT: `${MQTT_ROOT}/${MQTT_PROXIMITY}/event`,
+    PROXIMITY_STATUS: `${MQTT_ROOT}/${MQTT_PROXIMITY}/status`
 };
 
 class MqttService {
@@ -48,6 +51,7 @@ class MqttService {
         this.db = null;
         this.broadcast = null;
         this.connected = false;
+        this.vehiclePosition = null;  // cached for proximity engine
     }
 
     connect(db, broadcast) {
@@ -361,6 +365,15 @@ class MqttService {
     // Handle GPS lat/lon update from GPS module
     handleGpsStatus(payload) {
         console.log('Received GPS lat/lon:', payload);
+
+        // Cache vehicle position for proximity engine
+        if (payload.latitude != null && payload.longitude != null) {
+            this.vehiclePosition = {
+                latitude: payload.latitude,
+                longitude: payload.longitude,
+                timestamp: Date.now()
+            };
+        }
 
         // Broadcast GPS data directly via WebSocket (no database storage needed)
         if (this.broadcast) {
@@ -704,6 +717,31 @@ class MqttService {
         const topic = TOPICS.DEPLOYMENT_AVAILABLE;
         console.log(`Publishing deployment available to ${topic}:`, payload);
         this.client.publish(topic, JSON.stringify(payload), { qos: 1, retain: true });
+        return true;
+    }
+
+    // Publish proximity zone transition event to vehicle
+    publishProximityEvent(payload) {
+        if (!this.connected) {
+            console.warn('MQTT not connected, cannot publish proximity event');
+            return false;
+        }
+
+        const topic = TOPICS.PROXIMITY_EVENT;
+        console.log(`Publishing proximity event to ${topic}:`, payload);
+        this.client.publish(topic, JSON.stringify(payload), { qos: 1 });
+        return true;
+    }
+
+    // Publish proximity status summary to vehicle
+    publishProximityStatus(payload) {
+        if (!this.connected) {
+            console.warn('MQTT not connected, cannot publish proximity status');
+            return false;
+        }
+
+        const topic = TOPICS.PROXIMITY_STATUS;
+        this.client.publish(topic, JSON.stringify(payload), { qos: 1 });
         return true;
     }
 

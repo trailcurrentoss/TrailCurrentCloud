@@ -11,6 +11,8 @@ import { settingsPage } from './pages/settings.js';
 import { loginPage } from './pages/login.js';
 import { mapPage } from './pages/map.js';
 import { deploymentsPage } from './pages/deployments.js';
+import { proximityPage } from './pages/proximity.js';
+import { locationService } from './services/location-service.js';
 
 class App {
     constructor() {
@@ -76,6 +78,7 @@ class App {
             .register('airquality', airqualityPage)
             .register('map', mapPage)
             .register('deployments', deploymentsPage)
+            .register('proximity', proximityPage)
             .register('settings', settingsPage);
 
         // Initialize navigation
@@ -88,6 +91,9 @@ class App {
         // Connect WebSocket
         wsClient.connect();
         this.setupConnectionStatus();
+
+        // Start location sharing if enabled
+        locationService.start();
 
         // Navigate to initial page
         const initialPage = router.getPageFromHash();
@@ -179,6 +185,14 @@ class App {
                     </svg>
                     <span>Map</span>
                 </button>
+                <button class="nav-btn nav-overflow-item" data-page="proximity">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="12" r="6"></circle>
+                        <circle cx="12" cy="12" r="2"></circle>
+                    </svg>
+                    <span>Proximity</span>
+                </button>
                 <button class="nav-btn nav-overflow-item" data-page="deployments">
                     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -224,6 +238,14 @@ class App {
                             </svg>
                             <span>Map</span>
                         </button>
+                        <button class="nav-overflow-btn" data-page="proximity">
+                            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <circle cx="12" cy="12" r="6"></circle>
+                                <circle cx="12" cy="12" r="2"></circle>
+                            </svg>
+                            <span>Proximity</span>
+                        </button>
                         <button class="nav-overflow-btn" data-page="deployments">
                             <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -263,6 +285,9 @@ class App {
         } catch (error) {
             console.error('Logout error:', error);
         }
+
+        // Stop location sharing
+        locationService.stop();
 
         // Disconnect WebSocket
         wsClient.disconnect();

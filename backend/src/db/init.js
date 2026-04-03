@@ -64,6 +64,24 @@ async function seedDatabase() {
     // Note: energy, airquality, thermostat, water, and level data come from MQTT only
     // No database seeding needed for these - data flows via WebSocket
 
+    // Seed proximity config (singleton)
+    const proximityConfig = db.collection('proximity_config');
+    const existingProximityConfig = await proximityConfig.findOne({ _id: 'main' });
+    if (!existingProximityConfig) {
+        await proximityConfig.insertOne({
+            _id: 'main',
+            enabled: false,
+            zones: {
+                approaching_radius_m: 500,
+                arrived_radius_m: 50,
+            },
+            hysteresis_m: 20,
+            debounce_ms: 5000,
+            updated_at: new Date()
+        });
+        console.log('Seeded proximity config');
+    }
+
     console.log('Database seeding complete');
 }
 
