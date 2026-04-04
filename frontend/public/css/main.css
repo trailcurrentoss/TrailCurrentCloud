@@ -2324,13 +2324,18 @@ body {
 }
 
 /* ===== MAP PAGE ===== */
+.main-content:has(.page-map) {
+    max-width: 100%;
+    padding-left: 0;
+    padding-right: 0;
+}
+
 .page-map {
     display: flex;
     flex-direction: column;
     height: calc(100vh - 140px); /* Full height minus header and nav */
     padding: 0;
-    margin: -20px; /* Counteract main-content padding */
-    margin-top: 0;
+    margin: 0;
 }
 
 .page-map .section-title {
