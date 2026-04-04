@@ -101,16 +101,11 @@ export const proximityPage = {
                         </button>
                     </div>
                 ` : `
-                    <div class="settings-item" style="padding: 0;">
-                        <div>
-                            <span class="settings-label" style="font-size: 0.85rem;">Share Location</span>
-                            <p class="settings-description">Send GPS to Farwatch while this tab is open</p>
-                        </div>
-                        <button class="toggle-switch ${isSharing ? 'active' : ''}"
-                                id="location-sharing-toggle"
-                                aria-pressed="${isSharing}">
-                        </button>
-                    </div>
+                    <p class="settings-description" style="padding: 0; margin: 0;">
+                        ${isSharing
+                            ? 'Sharing GPS location while this tab is open'
+                            : 'Location sharing paused — reopen this page to resume'}
+                    </p>
                 `}
                 <div id="device-message" class="api-key-message hidden"></div>
             </div>
@@ -326,15 +321,20 @@ export const proximityPage = {
                     return;
                 }
 
-                // Request location permission up front so the user sees the browser prompt now
+                // Request precise location permission up front so the user sees the browser prompt now.
+                // enableHighAccuracy ensures mobile devices use GPS rather than IP-based location.
                 if (navigator.geolocation) {
                     try {
                         await new Promise((resolve, reject) => {
-                            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+                            navigator.geolocation.getCurrentPosition(resolve, reject, {
+                                enableHighAccuracy: true,
+                                timeout: 15000,
+                                maximumAge: 0
+                            });
                         });
                     } catch (err) {
                         if (err.code === 1) { // PERMISSION_DENIED
-                            this.showMessage('device-message', 'Location permission is required to register this device', 'error');
+                            this.showMessage('device-message', 'Precise location permission is required to register this device', 'error');
                             return;
                         }
                         // POSITION_UNAVAILABLE or TIMEOUT — permission was granted, just no fix yet. Continue.
@@ -356,22 +356,6 @@ export const proximityPage = {
                     LocationService.clearDeviceUuid();
                     this.showMessage('device-message', err.message || 'Failed to register device', 'error');
                 }
-            });
-        }
-
-        // Location sharing toggle
-        const sharingToggle = document.getElementById('location-sharing-toggle');
-        if (sharingToggle) {
-            sharingToggle.addEventListener('click', () => {
-                const newVal = !locationService.enabled;
-                locationService.enabled = newVal;
-                if (newVal) {
-                    locationService.start();
-                } else {
-                    locationService.stop();
-                }
-                sharingToggle.classList.toggle('active', newVal);
-                sharingToggle.setAttribute('aria-pressed', newVal);
             });
         }
 
