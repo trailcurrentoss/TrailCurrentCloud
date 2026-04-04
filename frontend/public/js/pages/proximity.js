@@ -103,8 +103,8 @@ export const proximityPage = {
                 ` : `
                     <p class="settings-description" style="padding: 0; margin: 0;">
                         ${isSharing
-                            ? 'Sharing GPS location while this tab is open'
-                            : 'Location sharing paused — reopen this page to resume'}
+                            ? 'Sharing precise GPS location while Farwatch is open'
+                            : 'Location sharing paused — reopen Farwatch to resume'}
                     </p>
                 `}
                 <div id="device-message" class="api-key-message hidden"></div>
