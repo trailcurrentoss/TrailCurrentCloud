@@ -3,6 +3,7 @@ import { API, wsClient } from '../api.js';
 import { locationService, LocationService, DEVICE_UUID_KEY } from '../services/location-service.js';
 
 let proximityConfig = null;
+let channels = []; // loaded from GET /api/lights — synced from vehicle config
 
 export const proximityPage = {
     render() {
@@ -17,22 +18,44 @@ export const proximityPage = {
     },
 
     async init() {
-        try {
-            const [config, devices, rules] = await Promise.all([
-                API.getProximityConfig(),
-                API.getProximityDevices(),
-                API.getProximityRules()
-            ]);
-            proximityConfig = config;
+        // Load each data source independently so partial failures don't block the page
+        let config = null;
+        let devices = [];
+        let rules = [];
 
-            document.getElementById('proximity-container').innerHTML = this.renderContent(config, devices, rules);
-            this.setupListeners(devices, rules);
-            this.setupWebSocket();
-        } catch (error) {
-            console.error('Failed to load proximity data:', error);
-            document.getElementById('proximity-container').innerHTML =
-                '<p style="color: var(--danger);">Failed to load proximity settings</p>';
+        try {
+            config = await API.getProximityConfig();
+        } catch (err) {
+            console.error('Failed to load proximity config:', err);
         }
+        try {
+            devices = await API.getProximityDevices();
+        } catch (err) {
+            console.error('Failed to load proximity devices:', err);
+        }
+        try {
+            rules = await API.getProximityRules();
+        } catch (err) {
+            console.error('Failed to load proximity rules:', err);
+        }
+        try {
+            channels = await API.getLights();
+        } catch (err) {
+            console.error('Failed to load channels:', err);
+            channels = [];
+        }
+
+        // Fall back to defaults if config couldn't be loaded
+        proximityConfig = config || {
+            enabled: false,
+            zones: { approaching_radius_m: 500, arrived_radius_m: 50 },
+            hysteresis_m: 20,
+            debounce_ms: 5000
+        };
+
+        document.getElementById('proximity-container').innerHTML = this.renderContent(proximityConfig, devices, rules);
+        this.setupListeners(devices, rules);
+        this.setupWebSocket();
     },
 
     renderContent(config, devices, rules) {
@@ -163,15 +186,10 @@ export const proximityPage = {
                         </select>
                     </div>
                     <div class="password-form-group">
-                        <label class="password-label">Action</label>
-                        <select id="rule-action-type" class="password-input">
-                            <option value="light">Light</option>
-                            <option value="relay">Relay</option>
+                        <label class="password-label">Channel</label>
+                        <select id="rule-channel" class="password-input">
+                            ${this.renderChannelOptions()}
                         </select>
-                    </div>
-                    <div class="password-form-group">
-                        <label class="password-label">Target (channel ID)</label>
-                        <input type="number" id="rule-target-id" class="password-input" placeholder="e.g., 7" min="1" max="200">
                     </div>
                     <div class="password-form-group">
                         <label class="password-label">State</label>
@@ -222,9 +240,12 @@ export const proximityPage = {
         }
 
         return rules.map(r => {
-            const actionDesc = r.actions.map(a =>
-                `${a.type} ${a.target_id} ${a.state ? 'ON' : 'OFF'}`
-            ).join(', ');
+            const actionDesc = r.actions.map(a => {
+                const ch = channels.find(c => c.id === a.target_id);
+                const chName = ch ? ch.name : `#${a.target_id}`;
+                const source = ch ? (ch.source === 'switchback' ? 'Switchback' : 'Torrent') : a.type;
+                return `${source} "${chName}" ${a.state ? 'ON' : 'OFF'}`;
+            }).join(', ');
 
             return `
                 <div class="api-key-item">
@@ -252,6 +273,32 @@ export const proximityPage = {
         }).join('');
     },
 
+    renderChannelOptions() {
+        if (!channels || channels.length === 0) {
+            return '<option value="" disabled>No channels configured</option>';
+        }
+
+        const torrentChannels = channels.filter(c => c.source !== 'switchback');
+        const switchbackChannels = channels.filter(c => c.source === 'switchback');
+
+        let html = '';
+        if (torrentChannels.length > 0) {
+            html += '<optgroup label="Torrent">';
+            html += torrentChannels.map(c =>
+                `<option value="${c.id}">${c.name}</option>`
+            ).join('');
+            html += '</optgroup>';
+        }
+        if (switchbackChannels.length > 0) {
+            html += '<optgroup label="Switchback">';
+            html += switchbackChannels.map(c =>
+                `<option value="${c.id}">${c.name}</option>`
+            ).join('');
+            html += '</optgroup>';
+        }
+        return html;
+    },
+
     setupListeners(devices, rules) {
         // Proximity enabled toggle
         const enabledToggle = document.getElementById('proximity-enabled-toggle');
@@ -268,7 +315,7 @@ export const proximityPage = {
             });
         }
 
-        // Register device
+        // Register device — also requests location permission and auto-enables sharing
         const registerBtn = document.getElementById('register-device-btn');
         if (registerBtn) {
             registerBtn.addEventListener('click', async () => {
@@ -278,10 +325,28 @@ export const proximityPage = {
                     this.showMessage('device-message', 'Please enter a device name', 'error');
                     return;
                 }
+
+                // Request location permission up front so the user sees the browser prompt now
+                if (navigator.geolocation) {
+                    try {
+                        await new Promise((resolve, reject) => {
+                            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+                        });
+                    } catch (err) {
+                        if (err.code === 1) { // PERMISSION_DENIED
+                            this.showMessage('device-message', 'Location permission is required to register this device', 'error');
+                            return;
+                        }
+                        // POSITION_UNAVAILABLE or TIMEOUT — permission was granted, just no fix yet. Continue.
+                    }
+                }
+
                 try {
                     const uuid = LocationService.generateDeviceUuid();
                     await API.registerProximityDevice(uuid, name);
-                    this.showMessage('device-message', 'Device registered! Enable location sharing below.', 'success');
+                    // Auto-enable location sharing since they just granted permission
+                    locationService.enabled = true;
+                    locationService.start();
                     // Re-render
                     const updatedDevices = await API.getProximityDevices();
                     document.getElementById('proximity-container').innerHTML =
@@ -373,24 +438,27 @@ export const proximityPage = {
             addRuleBtn.addEventListener('click', async () => {
                 const name = document.getElementById('rule-name')?.value?.trim();
                 const trigger = document.getElementById('rule-trigger')?.value;
-                const actionType = document.getElementById('rule-action-type')?.value;
-                const targetId = parseInt(document.getElementById('rule-target-id')?.value);
+                const channelId = parseInt(document.getElementById('rule-channel')?.value);
                 const state = parseInt(document.getElementById('rule-state')?.value);
 
                 if (!name) {
                     this.showMessage('rule-message', 'Please enter a rule name', 'error');
                     return;
                 }
-                if (!targetId || isNaN(targetId)) {
-                    this.showMessage('rule-message', 'Please enter a valid target channel ID', 'error');
+                if (!channelId || isNaN(channelId)) {
+                    this.showMessage('rule-message', 'Please select a channel', 'error');
                     return;
                 }
+
+                // Look up the channel to determine the action type
+                const channel = channels.find(c => c.id === channelId);
+                const actionType = channel?.source === 'switchback' ? 'relay' : 'light';
 
                 try {
                     await API.createProximityRule({
                         name,
                         trigger,
-                        actions: [{ type: actionType, target_id: targetId, state }]
+                        actions: [{ type: actionType, target_id: channelId, state }]
                     });
                     const updatedRules = await API.getProximityRules();
                     const updatedDevices = await API.getProximityDevices();
@@ -474,6 +542,7 @@ export const proximityPage = {
 
     cleanup() {
         proximityConfig = null;
+        channels = [];
         if (this._proximityStatusHandler) {
             wsClient.off('proximity_status', this._proximityStatusHandler);
             this._proximityStatusHandler = null;
