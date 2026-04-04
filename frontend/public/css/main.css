@@ -2325,9 +2325,10 @@ body {
 
 /* ===== MAP PAGE ===== */
 .main-content:has(.page-map) {
-    max-width: 100%;
+    max-width: none;
     padding-left: 0;
     padding-right: 0;
+    padding-top: 60px;
 }
 
 .page-map {

@@ -92,7 +92,7 @@ export const proximityPage = {
                 ${!isRegistered ? `
                     <div class="api-keys-actions">
                         <input type="text" id="device-name-input" class="api-key-input"
-                               placeholder="Device name (e.g., Dave's iPhone)" maxlength="50">
+                               placeholder="Device name (e.g., John's iPhone)" maxlength="50">
                         <button class="api-key-btn" id="register-device-btn" ${!hasGeolocation ? 'disabled' : ''}>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                                 <path d="M12 5v14M5 12h14"></path>
