@@ -52,6 +52,14 @@ class MqttService {
         this.broadcast = null;
         this.connected = false;
         this.vehiclePosition = null;  // cached for proximity engine
+        // Last-known light/relay state from MQTT status messages. Keyed by
+        // lightId (number). Used by the proximity engine to verify that an
+        // automation command actually took effect.
+        this.lightStates = new Map();
+    }
+
+    getLightState(lightId) {
+        return this.lightStates.get(lightId) || null;
     }
 
     connect(db, broadcast) {
@@ -306,13 +314,21 @@ class MqttService {
     async handleLightStatus(lightId, payload) {
         console.log(`Received light status for light ${lightId}:`, payload);
 
+        // Cache last-known state so the proximity engine can verify that
+        // automation commands actually took effect.
+        this.lightStates.set(lightId, {
+            state: payload.state,
+            brightness: payload.brightness,
+            timestamp: Date.now()
+        });
+
         // Broadcast light status data directly via WebSocket (no database storage needed)
         if (this.broadcast) {
-            this.broadcast('light', { 
-                "id": lightId, 
-                "_id": lightId, 
-                "state": payload.state, 
-                "brightness": payload.brightness 
+            this.broadcast('light', {
+                "id": lightId,
+                "_id": lightId,
+                "state": payload.state,
+                "brightness": payload.brightness
             });
         }
     }
@@ -322,6 +338,12 @@ class MqttService {
     handleRelayStatus(relayId, payload) {
         const SWITCHBACK_ID_BASE = 100;
         const lightId = SWITCHBACK_ID_BASE + relayId;
+
+        this.lightStates.set(lightId, {
+            state: payload.state,
+            brightness: null,
+            timestamp: Date.now()
+        });
 
         if (this.broadcast) {
             this.broadcast('light', { id: lightId, _id: lightId, state: payload.state });

@@ -239,6 +239,15 @@ module.exports = (db) => {
 
             const result = await rules.insertOne(doc);
             doc._id = result.insertedId;
+
+            // If a device is already in the matching zone, fire the rule now.
+            // Otherwise users who create a rule while already inside the radius
+            // would have to leave and re-enter before it ever runs.
+            if (proximityEngine.hasDeviceInZone(trigger)) {
+                console.log(`[Proximity] New rule "${doc.name}" — device already in "${trigger}" zone, firing immediately`);
+                proximityEngine.executeRuleActions(doc);
+            }
+
             res.status(201).json(doc);
         } catch (error) {
             console.error('Error creating proximity rule:', error);
@@ -279,6 +288,18 @@ module.exports = (db) => {
             }
 
             const updated = await rules.findOne({ _id: new ObjectId(req.params.id) });
+
+            // Fire immediately if the rule is (now) enabled and a device is
+            // already in the matching zone. Covers both "toggle on while
+            // already approaching" and "change trigger to current zone".
+            const becameEnabled = enabled === true;
+            const triggerChanged = trigger !== undefined;
+            if (updated.enabled && (becameEnabled || triggerChanged) &&
+                proximityEngine.hasDeviceInZone(updated.trigger)) {
+                console.log(`[Proximity] Rule "${updated.name}" updated — device already in "${updated.trigger}" zone, firing immediately`);
+                proximityEngine.executeRuleActions(updated);
+            }
+
             res.json(updated);
         } catch (error) {
             console.error('Error updating proximity rule:', error);

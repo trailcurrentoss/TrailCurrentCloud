@@ -56,6 +56,18 @@ export const proximityPage = {
         document.getElementById('proximity-container').innerHTML = this.renderContent(proximityConfig, devices, rules);
         this.setupListeners(devices, rules);
         this.setupWebSocket();
+
+        // Prime the Live Status panel from the REST endpoint so users don't
+        // see "Waiting for location data..." for up to 10 s after returning
+        // to the tab (broadcastStatus only fires on a 10 s interval).
+        try {
+            const status = await API.getProximityStatus();
+            if (status && status.devices && status.devices.length > 0 && this._proximityStatusHandler) {
+                this._proximityStatusHandler(status);
+            }
+        } catch (err) {
+            // Non-critical — the next WebSocket broadcast will populate it
+        }
     },
 
     renderContent(config, devices, rules) {
