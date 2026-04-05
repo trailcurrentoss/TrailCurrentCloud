@@ -1,5 +1,6 @@
 // Map display component using MapLibre GL JS for vector tiles
 import { wsClient } from '../api.js';
+import { locationService } from '../services/location-service.js';
 
 export class MapDisplay {
     constructor(containerId) {
@@ -12,6 +13,7 @@ export class MapDisplay {
         this.hasReceivedLocation = false;
         this.unsubStaleLatlon = null;
         this.unsubStaleGnss = null;
+        this.devicePollInterval = null;
     }
 
     render() {
@@ -114,7 +116,15 @@ export class MapDisplay {
         // Add location marker when map loads
         this.map.on('load', () => {
             this.addLocationLayers();
+            this.updateDeviceLocationOnMap();
         });
+
+        // Poll this device's shared location and update the green dot
+        this.devicePollInterval = setInterval(() => {
+            if (this.map && this.map.loaded()) {
+                this.updateDeviceLocationOnMap();
+            }
+        }, 2000);
     }
 
     addLocationLayers() {
@@ -167,6 +177,62 @@ export class MapDisplay {
                 'circle-opacity': 0.3
             },
             filter: ['==', ['get', 'type'], 'location']
+        });
+
+        // Add a separate source for this device's (phone) location when sharing is enabled
+        this.map.addSource('device-location', {
+            type: 'geojson',
+            data: {
+                type: 'FeatureCollection',
+                features: []
+            }
+        });
+
+        this.map.addLayer({
+            id: 'device-location-pulse',
+            type: 'circle',
+            source: 'device-location',
+            paint: {
+                'circle-radius': 16,
+                'circle-color': '#52a441',
+                'circle-opacity': 0.3
+            }
+        });
+
+        this.map.addLayer({
+            id: 'device-location-dot',
+            type: 'circle',
+            source: 'device-location',
+            paint: {
+                'circle-radius': 8,
+                'circle-color': '#52a441',
+                'circle-stroke-width': 3,
+                'circle-stroke-color': '#ffffff'
+            }
+        });
+    }
+
+    updateDeviceLocationOnMap() {
+        if (!this.map || !this.map.getSource) return;
+        const source = this.map.getSource('device-location');
+        if (!source) return;
+
+        const pos = locationService.enabled ? locationService.lastPosition : null;
+        if (!pos || !pos.coords) {
+            source.setData({ type: 'FeatureCollection', features: [] });
+            return;
+        }
+
+        source.setData({
+            type: 'FeatureCollection',
+            features: [{
+                type: 'Feature',
+                geometry: {
+                    type: 'Point',
+                    coordinates: [pos.coords.longitude, pos.coords.latitude]
+                },
+                properties: {}
+            }]
         });
     }
 
@@ -364,6 +430,11 @@ export class MapDisplay {
 
         if (this.unsubStaleLatlon) this.unsubStaleLatlon();
         if (this.unsubStaleGnss) this.unsubStaleGnss();
+
+        if (this.devicePollInterval) {
+            clearInterval(this.devicePollInterval);
+            this.devicePollInterval = null;
+        }
 
         // Destroy map
         if (this.map) {
