@@ -14,6 +14,7 @@ export class MapDisplay {
         this.unsubStaleLatlon = null;
         this.unsubStaleGnss = null;
         this.devicePollInterval = null;
+        this.followVehicle = true;
     }
 
     render() {
@@ -112,6 +113,11 @@ export class MapDisplay {
             compact: true,
             customAttribution: '© OpenStreetMap contributors'
         }));
+
+        // Disable auto-follow when user manually pans or zooms
+        this.map.on('dragstart', () => {
+            this.followVehicle = false;
+        });
 
         // Add location marker when map loads
         this.map.on('load', () => {
@@ -374,12 +380,13 @@ export class MapDisplay {
             this.updateLocationOnMap(latitude, longitude, accuracy);
         }
 
-        // Center map on first position
-        if (isFirstPosition && this.map) {
-            this.map.flyTo({
+        // Center map on vehicle location when following
+        if (this.followVehicle && this.map) {
+            const zoom = isFirstPosition ? 15 : this.map.getZoom();
+            this.map.easeTo({
                 center: [longitude, latitude],
-                zoom: 15,
-                duration: 1000
+                zoom: zoom,
+                duration: isFirstPosition ? 1000 : 500
             });
         }
 
@@ -407,6 +414,7 @@ export class MapDisplay {
 
     centerOnLocation() {
         if (this.currentPosition && this.map) {
+            this.followVehicle = true;
             this.map.flyTo({
                 center: [this.currentPosition.lng, this.currentPosition.lat],
                 zoom: Math.max(this.map.getZoom(), 15),
