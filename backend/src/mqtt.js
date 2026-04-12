@@ -11,6 +11,7 @@ const MQTT_ENERGY = 'energy';
 const MQTT_AIRQUALITY = 'airquality';
 const MQTT_GPS = 'gps';
 const MQTT_LEVEL = 'level';
+const MQTT_WATER = 'water';
 const MQTT_RELAYS = 'relays';
 const MQTT_CONFIG = 'config';
 const MQTT_SYSTEM = 'system';
@@ -33,6 +34,7 @@ const TOPICS = {
     GPS_LAT_LON: `${MQTT_ROOT}/${MQTT_GPS}/latlon`,
     GPS_ALT: `${MQTT_ROOT}/${MQTT_GPS}/alt`,
     GPS_GNSS_DETAILS: `${MQTT_ROOT}/${MQTT_GPS}/details`,
+    WATER_STATUS: `${MQTT_ROOT}/${MQTT_WATER}/${MSG_STATUS}`,
     LEVEL_TILT: `${MQTT_ROOT}/${MQTT_LEVEL}/tilt`,
     LEVEL_STATUS: `${MQTT_ROOT}/${MQTT_LEVEL}/${MSG_STATUS}`,
     RELAY_STATUS: `${MQTT_ROOT}/${MQTT_RELAYS}/+/${MSG_STATUS}`,
@@ -208,6 +210,15 @@ class MqttService {
             }
         });
 
+        // Subscribe to water tank status topic (Reservoir module)
+        this.client.subscribe(TOPICS.WATER_STATUS, (err) => {
+            if (err) {
+                console.error('Failed to subscribe to water status:', err);
+            } else {
+                console.log('Subscribed to water status topic');
+            }
+        });
+
         // Subscribe to Plateau level tilt topic
         this.client.subscribe(TOPICS.LEVEL_TILT, (err) => {
             if (err) {
@@ -294,6 +305,8 @@ class MqttService {
                 this.handleThermostatStatus(payload);
             } else if (parts[1] === 'deployment' && parts[2] === 'status') {
                 this.handleDeploymentStatus(payload);
+            } else if (parts[1] === MQTT_WATER && parts[2] === MSG_STATUS) {
+                this.handleWaterStatus(payload);
             } else if (parts[1] === MQTT_LEVEL && parts[2] === 'tilt') {
                 this.handleLevelTilt(payload);
             } else if (parts[1] === MQTT_LEVEL && parts[2] === MSG_STATUS) {
@@ -593,6 +606,14 @@ class MqttService {
 
     // Handle Plateau tilt data (CAN ID 0x30 decoded by Node-RED)
     // Payload: { front_back, side_to_side, front_back_diff_mm, left_right_diff_mm }
+    // Handle water tank levels from Reservoir (via cloud bridge)
+    // Payload: { fresh, grey, black } — each 0-100 %
+    handleWaterStatus(payload) {
+        if (this.broadcast) {
+            this.broadcast('water', payload);
+        }
+    }
+
     handleLevelTilt(payload) {
         if (this.broadcast) {
             this.broadcast('level', payload);
