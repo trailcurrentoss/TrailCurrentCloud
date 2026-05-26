@@ -78,6 +78,23 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  certbot:
+    build:
+      context: ./certbot
+      dockerfile: Dockerfile
+    environment:
+      - TLS_CERT_HOSTNAME=${TLS_CERT_HOSTNAME}
+      - COMPOSE_PROJECT=trailcurrent-cloud
+      - RENEWAL_INTERVAL=${RENEWAL_INTERVAL:-43200}
+    volumes:
+      - ./data/letsencrypt:/etc/letsencrypt
+      - ./data/keys:/keys
+      - certbot-webroot:/var/www/certbot
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    depends_on:
+      - frontend
+
 volumes:
   mongodb-data:
   certbot-webroot:

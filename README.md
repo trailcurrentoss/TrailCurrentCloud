@@ -151,25 +151,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
    docker compose up -d
    ```
 
-7. **Set up automatic certificate renewal:**
-
-   Let's Encrypt certificates expire after 90 days. Add a cron job to renew automatically:
-
-   ```bash
-   crontab -e
-   ```
-
-   Add this line:
-
-   ```
-   0 0,12 * * * ~/TrailCurrentFarwatch/scripts/renew-certs.sh >> ~/TrailCurrentFarwatch/logs/cert-renewal.log 2>&1
-   ```
-
-   Create the logs directory: `mkdir -p ~/TrailCurrentFarwatch/logs`
-
-   The renewal script checks twice daily, only renews when needed, copies updated certs to `data/keys/`, reloads nginx, and restarts mosquitto.
-
-8. **Verify:**
+7. **Verify:**
 
    ```
    https://cloud.yourdomain.com
@@ -188,16 +170,23 @@ docker compose up -d --build
 
 No certificate or environment changes are needed — `data/keys/`, `data/letsencrypt/`, `.env`, and MongoDB data persist across rebuilds.
 
-### Manual Certificate Renewal
+### Certificate Renewal
 
-If the cron job is not configured, or you need to force a renewal:
+Renewal is automatic. The `certbot` service in `docker-compose.yml` runs continuously, checks for renewal every 12 hours, and on a successful renewal copies new files into `data/keys/` and restarts frontend, mosquitto, and backend. There is no host cron job to install.
+
+To check renewal activity:
 
 ```bash
-cd ~/TrailCurrentFarwatch
-./scripts/renew-certs.sh
+docker compose logs certbot
 ```
 
-This requires the services to be running (nginx serves the ACME challenge via webroot mode).
+To force an immediate renewal attempt (e.g. after restoring from backup):
+
+```bash
+docker compose exec certbot certbot renew --webroot -w /var/www/certbot --deploy-hook /deploy-hook.sh --force-renewal
+```
+
+Use `--force-renewal` sparingly — Let's Encrypt rate-limits to ~5 duplicate certs per week per domain.
 
 ## TLS Certificates
 
@@ -215,10 +204,8 @@ The `scripts/generate-certs.sh` script generates self-signed certificates with p
 The `scripts/setup-letsencrypt.sh` script obtains trusted certificates from Let's Encrypt using certbot. Certificates are copied to `data/keys/` so all service volume mounts work unchanged.
 
 - Initial acquisition uses standalone mode (port 80)
-- Renewal uses webroot mode through the running nginx container
-- `scripts/renew-certs.sh` handles renewal, cert copying, and service reloading
-
-Let's Encrypt certificates expire after 90 days. The renewal cron job handles this automatically.
+- Ongoing renewal runs inside the `certbot` service in `docker-compose.yml` — no host cron required
+- Renewals use webroot mode through the nginx container, then a deploy-hook writes new certs into `data/keys/` (preserving inodes so running bind mounts stay valid) and restarts the dependent services
 
 ## Deployment Packages
 
@@ -394,10 +381,13 @@ The backend subscribes to MQTT topics from the vehicle's CAN-to-MQTT gateway and
 │   ├── config.json             # Tileserver configuration
 │   ├── styles/                 # Map styles (basic, dark)
 │   └── generate-tiles.sh       # OSM PBF to mbtiles converter
+├── certbot/                    # Automated Let's Encrypt renewal service
+│   ├── Dockerfile              # certbot + docker CLI
+│   ├── entrypoint.sh           # Renewal loop (every 12h)
+│   └── deploy-hook.sh          # Copies new certs and restarts services
 ├── scripts/
 │   ├── generate-certs.sh       # Self-signed certificate generator
 │   ├── setup-letsencrypt.sh    # Let's Encrypt initial setup
-│   ├── renew-certs.sh          # Let's Encrypt renewal (for cron)
 │   └── openssl.cnf             # OpenSSL configuration template
 ├── DOCS/                       # Additional documentation
 ├── docker-compose.yml          # Production configuration
